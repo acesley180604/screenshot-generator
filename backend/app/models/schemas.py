@@ -67,7 +67,7 @@ class TextBackground(BaseModel):
 
 class TextStyle(BaseModel):
     font_family: str = "SF Pro Display"
-    font_size: int = 48
+    font_size: int = 120
     font_weight: int = 700
     color: str = "#000000"
     alignment: TextAlignment = TextAlignment.CENTER

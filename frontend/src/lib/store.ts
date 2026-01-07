@@ -14,7 +14,7 @@ import type {
 // Default values
 const defaultTextStyle: TextStyle = {
   fontFamily: 'SF Pro Display',
-  fontSize: 64,
+  fontSize: 120,
   fontWeight: 700,
   color: '#000000',
   alignment: 'center',
@@ -26,7 +26,7 @@ const defaultDeviceConfig: DeviceConfig = {
   model: 'iphone-6.9',
   color: 'natural-titanium',
   style: 'realistic',
-  scale: 0.85,
+  scale: 0.75,
   positionX: 0.5,
   positionY: 0.55,
   shadow: true,
@@ -135,6 +135,14 @@ interface EditorState {
   updateExportConfig: (config: Partial<ExportConfig>) => void;
   setExportJob: (jobId: string | null, status: 'idle' | 'pending' | 'processing' | 'completed' | 'failed', progress: number) => void;
 
+  // Actions - Bulk Import
+  showBulkImportDialog: boolean;
+  setShowBulkImportDialog: (show: boolean) => void;
+  bulkImportScreenshots: (images: { url: string; filename: string }[], headline: string, subtitle?: string) => void;
+  applyHeadlineToAll: (headline: string, locale: string) => void;
+  applySubtitleToAll: (subtitle: string, locale: string) => void;
+  applyTemplateToAll: (template: TemplateConfig) => void;
+
   // Helpers
   getSelectedScreenshot: () => ScreenshotConfig | undefined;
   getSelectedText: () => LocalizedText | undefined;
@@ -156,6 +164,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   showTemplateGallery: false,
   showExportDialog: false,
+  showBulkImportDialog: false,
   isGeneratingPreview: false,
   previewUrl: null,
 
@@ -311,7 +320,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       translations: { [state.currentLocale]: type === 'headline' ? 'New headline' : 'New text' },
       style: {
         ...defaultTextStyle,
-        fontSize: type === 'headline' ? 64 : type === 'subtitle' ? 32 : 24,
+        fontSize: type === 'headline' ? 120 : type === 'subtitle' ? 32 : 24,
         fontWeight: type === 'headline' ? 700 : 400,
       },
       positionY: type === 'headline' ? 0.08 : type === 'subtitle' ? 0.14 : 0.9,
@@ -400,8 +409,83 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   // UI actions
   setShowTemplateGallery: (show) => set({ showTemplateGallery: show }),
   setShowExportDialog: (show) => set({ showExportDialog: show }),
+  setShowBulkImportDialog: (show) => set({ showBulkImportDialog: show }),
   setPreviewUrl: (url) => set({ previewUrl: url }),
   setIsGeneratingPreview: (generating) => set({ isGeneratingPreview: generating }),
+
+  // Bulk Import actions
+  bulkImportScreenshots: (images, headline, subtitle) => set((state) => {
+    const newScreenshots: ScreenshotConfig[] = images.map((img, index) => ({
+      id: uuid(),
+      order: index,
+      template: { ...defaultTemplate },
+      device: { ...defaultDeviceConfig },
+      image: { url: img.url, fit: 'cover', positionX: 0.5, positionY: 0.5 },
+      texts: [
+        {
+          id: uuid(),
+          type: 'headline' as const,
+          translations: { [state.currentLocale]: headline },
+          style: { ...defaultTextStyle },
+          positionY: 0.08,
+        },
+        ...(subtitle ? [{
+          id: uuid(),
+          type: 'subtitle' as const,
+          translations: { [state.currentLocale]: subtitle },
+          style: { ...defaultTextStyle, fontSize: 32, fontWeight: 400, color: '#666666' },
+          positionY: 0.14,
+        }] : []),
+      ],
+    }));
+
+    return {
+      project: {
+        ...state.project,
+        screenshots: newScreenshots,
+      },
+      selectedScreenshotId: newScreenshots[0]?.id || null,
+      showBulkImportDialog: false,
+    };
+  }),
+
+  applyHeadlineToAll: (headline, locale) => set((state) => ({
+    project: {
+      ...state.project,
+      screenshots: state.project.screenshots.map((s) => ({
+        ...s,
+        texts: s.texts.map((t) =>
+          t.type === 'headline'
+            ? { ...t, translations: { ...t.translations, [locale]: headline } }
+            : t
+        ),
+      })),
+    },
+  })),
+
+  applySubtitleToAll: (subtitle, locale) => set((state) => ({
+    project: {
+      ...state.project,
+      screenshots: state.project.screenshots.map((s) => ({
+        ...s,
+        texts: s.texts.map((t) =>
+          t.type === 'subtitle'
+            ? { ...t, translations: { ...t.translations, [locale]: subtitle } }
+            : t
+        ),
+      })),
+    },
+  })),
+
+  applyTemplateToAll: (template) => set((state) => ({
+    project: {
+      ...state.project,
+      screenshots: state.project.screenshots.map((s) => ({
+        ...s,
+        template,
+      })),
+    },
+  })),
 
   // Export actions
   updateExportConfig: (config) => set((state) => ({

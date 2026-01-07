@@ -2,8 +2,10 @@
 import io
 import math
 import os
+import random
 from typing import Optional, Tuple, List
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
+import numpy as np
 from ..data.devices import DEVICE_SPECS
 
 
@@ -74,19 +76,21 @@ class ImageProcessor:
         return image
 
     def _create_radial_gradient(
-        self, width: int, height: int, stops: List[dict]
+        self, width: int, height: int, stops: List[dict],
+        center_x: float = 0.5, center_y: float = 0.5
     ) -> Image.Image:
-        """Create a radial gradient"""
+        """Create a radial gradient with configurable center"""
         image = Image.new("RGBA", (width, height))
 
-        center_x, center_y = width // 2, height // 2
-        max_dist = math.sqrt(center_x**2 + center_y**2)
+        cx = int(width * center_x)
+        cy = int(height * center_y)
+        max_dist = math.sqrt(max(cx, width - cx)**2 + max(cy, height - cy)**2)
 
         colors = [(self._parse_color(s["color"]), s["position"]) for s in stops]
 
         for y in range(height):
             for x in range(width):
-                dist = math.sqrt((x - center_x)**2 + (y - center_y)**2)
+                dist = math.sqrt((x - cx)**2 + (y - cy)**2)
                 t = dist / max_dist
                 t = max(0, min(1, t))
 
@@ -94,6 +98,151 @@ class ImageProcessor:
                 image.putpixel((x, y), color)
 
         return image
+
+    def _create_mesh_gradient(
+        self, width: int, height: int, color_points: List[dict]
+    ) -> Image.Image:
+        """Create a mesh gradient with multiple color points
+
+        color_points: List of {"color": "#RRGGBB", "x": 0.0-1.0, "y": 0.0-1.0, "radius": 0.0-1.0}
+        """
+        # Use numpy for faster computation
+        img_array = np.zeros((height, width, 4), dtype=np.float32)
+        weight_sum = np.zeros((height, width), dtype=np.float32)
+
+        for point in color_points:
+            color = self._parse_color(point["color"])
+            px = int(point.get("x", 0.5) * width)
+            py = int(point.get("y", 0.5) * height)
+            radius = point.get("radius", 0.5) * max(width, height)
+
+            # Create distance field for this point
+            y_coords, x_coords = np.ogrid[:height, :width]
+            dist = np.sqrt((x_coords - px)**2 + (y_coords - py)**2)
+
+            # Gaussian falloff
+            weight = np.exp(-(dist**2) / (2 * radius**2))
+
+            # Add weighted color
+            for i in range(4):
+                img_array[:, :, i] += weight * color[i]
+            weight_sum += weight
+
+        # Normalize
+        weight_sum = np.maximum(weight_sum, 0.0001)  # Avoid division by zero
+        for i in range(4):
+            img_array[:, :, i] /= weight_sum
+
+        # Clip and convert to uint8
+        img_array = np.clip(img_array, 0, 255).astype(np.uint8)
+
+        return Image.fromarray(img_array, mode="RGBA")
+
+    def _create_conic_gradient(
+        self, width: int, height: int, stops: List[dict],
+        center_x: float = 0.5, center_y: float = 0.5, start_angle: float = 0
+    ) -> Image.Image:
+        """Create a conic (angular) gradient"""
+        image = Image.new("RGBA", (width, height))
+
+        cx = int(width * center_x)
+        cy = int(height * center_y)
+
+        colors = [(self._parse_color(s["color"]), s["position"]) for s in stops]
+
+        for y in range(height):
+            for x in range(width):
+                # Calculate angle from center
+                angle = math.atan2(y - cy, x - cx)
+                # Normalize to 0-1, accounting for start angle
+                t = ((angle + math.pi - math.radians(start_angle)) / (2 * math.pi)) % 1.0
+
+                color = self._interpolate_color(colors, t)
+                image.putpixel((x, y), color)
+
+        return image
+
+    def _add_noise_texture(
+        self, image: Image.Image, intensity: float = 0.05,
+        monochrome: bool = True
+    ) -> Image.Image:
+        """Add noise/grain texture to an image"""
+        img_array = np.array(image, dtype=np.float32)
+
+        if monochrome:
+            noise = np.random.randn(image.height, image.width, 1) * 255 * intensity
+            noise = np.repeat(noise, 3, axis=2)
+            noise = np.concatenate([noise, np.zeros((image.height, image.width, 1))], axis=2)
+        else:
+            noise = np.random.randn(image.height, image.width, 3) * 255 * intensity
+            noise = np.concatenate([noise, np.zeros((image.height, image.width, 1))], axis=2)
+
+        img_array[:, :, :3] = np.clip(img_array[:, :, :3] + noise[:, :, :3], 0, 255)
+
+        return Image.fromarray(img_array.astype(np.uint8), mode="RGBA")
+
+    def _create_abstract_blobs(
+        self, width: int, height: int, blobs: List[dict],
+        blur_amount: int = 100
+    ) -> Image.Image:
+        """Create abstract blob background with blur
+
+        blobs: List of {"color": "#RRGGBB", "x": 0.0-1.0, "y": 0.0-1.0, "size": 0.0-1.0}
+        """
+        image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(image)
+
+        for blob in blobs:
+            color = self._parse_color(blob["color"])
+            x = int(blob.get("x", 0.5) * width)
+            y = int(blob.get("y", 0.5) * height)
+            size = int(blob.get("size", 0.3) * min(width, height))
+
+            # Draw ellipse for blob
+            draw.ellipse(
+                [x - size, y - size, x + size, y + size],
+                fill=color
+            )
+
+        # Apply heavy blur
+        image = image.filter(ImageFilter.GaussianBlur(blur_amount))
+
+        return image
+
+    def _create_glassmorphism_background(
+        self, width: int, height: int, config: dict
+    ) -> Image.Image:
+        """Create glassmorphism style background
+
+        config: {
+            "base_gradient": gradient config,
+            "blobs": blob config list,
+            "glass_blur": blur amount for glass effect,
+            "glass_opacity": 0.0-1.0
+        }
+        """
+        # Create base gradient
+        base_config = config.get("base_gradient", {})
+        if base_config:
+            base = self.create_gradient(
+                width, height,
+                base_config.get("stops", [{"color": "#667EEA", "position": 0}, {"color": "#764BA2", "position": 1}]),
+                base_config.get("angle", 135),
+                base_config.get("type", "linear")
+            )
+        else:
+            base = Image.new("RGBA", (width, height), (102, 126, 234, 255))
+
+        # Add blobs if specified
+        blobs_config = config.get("blobs", [])
+        if blobs_config:
+            blobs = self._create_abstract_blobs(
+                width, height, blobs_config,
+                config.get("blob_blur", 150)
+            )
+            base = Image.alpha_composite(base, blobs)
+
+        return base
 
     def _interpolate_color(
         self, colors: List[Tuple[Tuple[int, ...], float]], t: float
@@ -153,27 +302,118 @@ class ImageProcessor:
 
         if bg_type == "solid":
             color = self._parse_color(background_config.get("color", "#FFFFFF"))
-            return Image.new("RGBA", (width, height), color)
+            background = Image.new("RGBA", (width, height), color)
 
         elif bg_type == "gradient":
             gradient_config = background_config.get("gradient", {})
-            return self.create_gradient(
-                width,
-                height,
-                gradient_config.get("stops", [{"color": "#FFFFFF", "position": 0}]),
-                gradient_config.get("angle", 180),
-                gradient_config.get("type", "linear")
+            gradient_type = gradient_config.get("type", "linear")
+
+            if gradient_type == "radial":
+                background = self._create_radial_gradient(
+                    width, height,
+                    gradient_config.get("stops", [{"color": "#FFFFFF", "position": 0}]),
+                    gradient_config.get("center_x", 0.5),
+                    gradient_config.get("center_y", 0.5)
+                )
+            elif gradient_type == "conic":
+                background = self._create_conic_gradient(
+                    width, height,
+                    gradient_config.get("stops", [{"color": "#FFFFFF", "position": 0}]),
+                    gradient_config.get("center_x", 0.5),
+                    gradient_config.get("center_y", 0.5),
+                    gradient_config.get("start_angle", 0)
+                )
+            else:
+                background = self.create_gradient(
+                    width, height,
+                    gradient_config.get("stops", [{"color": "#FFFFFF", "position": 0}]),
+                    gradient_config.get("angle", 180),
+                    gradient_type
+                )
+
+        elif bg_type == "mesh":
+            # Mesh gradient with multiple color points
+            color_points = background_config.get("color_points", [
+                {"color": "#667EEA", "x": 0.2, "y": 0.2, "radius": 0.6},
+                {"color": "#764BA2", "x": 0.8, "y": 0.8, "radius": 0.6}
+            ])
+            background = self._create_mesh_gradient(width, height, color_points)
+
+        elif bg_type == "glassmorphism":
+            background = self._create_glassmorphism_background(
+                width, height, background_config
             )
+
+        elif bg_type == "blobs":
+            # Abstract blobs with base color
+            base_color = self._parse_color(background_config.get("base_color", "#1a1a2e"))
+            background = Image.new("RGBA", (width, height), base_color)
+            blobs = self._create_abstract_blobs(
+                width, height,
+                background_config.get("blobs", []),
+                background_config.get("blur", 150)
+            )
+            background = Image.alpha_composite(background, blobs)
 
         elif bg_type == "image":
             # Load and resize background image
             image_url = background_config.get("image_url")
             if image_url and os.path.exists(image_url):
                 bg_image = Image.open(image_url).convert("RGBA")
-                return bg_image.resize((width, height), Image.Resampling.LANCZOS)
+                background = bg_image.resize((width, height), Image.Resampling.LANCZOS)
+            else:
+                background = Image.new("RGBA", (width, height), (255, 255, 255, 255))
 
-        # Default to white
-        return Image.new("RGBA", (width, height), (255, 255, 255, 255))
+        else:
+            # Default to white
+            background = Image.new("RGBA", (width, height), (255, 255, 255, 255))
+
+        # Apply noise/grain texture if specified
+        noise_config = background_config.get("noise")
+        if noise_config and noise_config.get("enabled", False):
+            background = self._add_noise_texture(
+                background,
+                noise_config.get("intensity", 0.03),
+                noise_config.get("monochrome", True)
+            )
+
+        return background
+
+    def create_panoramic_background(
+        self,
+        width: int,
+        height: int,
+        background_config: dict,
+        screenshot_index: int,
+        total_screenshots: int
+    ) -> Image.Image:
+        """Create a panoramic background that spans multiple screenshots.
+
+        This creates a wide background and crops the appropriate section
+        for each screenshot position.
+        """
+        # Create a wide background that spans all screenshots
+        total_width = width * total_screenshots
+
+        # Create the full panoramic background
+        panoramic_config = background_config.copy()
+
+        # Adjust gradient angle for panoramic effect
+        if panoramic_config.get("type") == "gradient":
+            gradient_config = panoramic_config.get("gradient", {})
+            # For panoramic, use a horizontal gradient
+            gradient_config["angle"] = gradient_config.get("panoramic_angle", 90)
+            panoramic_config["gradient"] = gradient_config
+
+        # Create the full width background
+        full_background = self.create_background(total_width, height, panoramic_config)
+
+        # Calculate crop area for this screenshot
+        left = screenshot_index * width
+        right = left + width
+
+        # Crop and return the section for this screenshot
+        return full_background.crop((left, 0, right, height))
 
     def create_device_frame(
         self,
@@ -448,13 +688,16 @@ class ImageProcessor:
         output = background.copy()
 
         # Calculate device position
-        device_scale = device_config.get("scale", 0.85)
+        # Scale is relative to canvas width (e.g., 0.75 = device takes 75% of canvas width)
+        device_scale = device_config.get("scale", 0.75)
         pos_x = device_config.get("position_x", 0.5)
         pos_y = device_config.get("position_y", 0.55)
 
-        # Scale device frame
-        new_width = int(device_frame.width * device_scale)
-        new_height = int(device_frame.height * device_scale)
+        # Scale device frame relative to canvas width
+        target_device_width = int(target_width * device_scale)
+        scale_factor = target_device_width / device_frame.width
+        new_width = target_device_width
+        new_height = int(device_frame.height * scale_factor)
         device_scaled = device_frame.resize(
             (new_width, new_height),
             Image.Resampling.LANCZOS

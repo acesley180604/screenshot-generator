@@ -1,6 +1,6 @@
 // Screenshot Generator Types
 
-export type BackgroundType = 'solid' | 'gradient' | 'image' | 'pattern';
+export type BackgroundType = 'solid' | 'gradient' | 'image' | 'pattern' | 'mesh' | 'glassmorphism' | 'blobs';
 export type DeviceStyle = 'realistic' | 'clay' | 'flat' | 'none';
 export type TextPosition = 'top' | 'bottom' | 'overlay';
 export type TextAlignment = 'left' | 'center' | 'right';
@@ -13,9 +13,35 @@ export interface GradientStop {
 }
 
 export interface GradientConfig {
-  type: 'linear' | 'radial';
-  angle: number;
+  type: 'linear' | 'radial' | 'conic';
+  angle?: number;
+  center_x?: number;
+  center_y?: number;
+  start_angle?: number;
   stops: GradientStop[];
+}
+
+// Mesh gradient color point
+export interface MeshColorPoint {
+  color: string;
+  x: number;
+  y: number;
+  radius: number;
+}
+
+// Blob configuration
+export interface BlobConfig {
+  color: string;
+  x: number;
+  y: number;
+  size: number;
+}
+
+// Noise/grain texture configuration
+export interface NoiseConfig {
+  enabled: boolean;
+  intensity: number;
+  monochrome: boolean;
 }
 
 // Background configuration
@@ -25,6 +51,22 @@ export interface BackgroundConfig {
   gradient?: GradientConfig;
   imageUrl?: string;
   pattern?: string;
+  panoramic?: boolean; // Enable panoramic mode for continuous background across screenshots
+
+  // Mesh gradient
+  color_points?: MeshColorPoint[];
+
+  // Glassmorphism
+  base_gradient?: GradientConfig;
+  blobs?: BlobConfig[];
+  blob_blur?: number;
+
+  // Blobs background
+  base_color?: string;
+  blur?: number;
+
+  // Noise/grain texture
+  noise?: NoiseConfig;
 }
 
 // Text styling

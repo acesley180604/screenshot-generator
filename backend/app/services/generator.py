@@ -33,7 +33,9 @@ class ScreenshotGenerator:
         screenshot_config: dict,
         locale: str = "en",
         width: int = 1290,
-        height: int = 2796
+        height: int = 2796,
+        screenshot_index: int = 0,
+        total_screenshots: int = 1
     ) -> bytes:
         """Generate a preview image for a screenshot configuration"""
         # Get template config
@@ -44,13 +46,21 @@ class ScreenshotGenerator:
 
         # Create background
         bg_config = template_config.get("background", {"type": "solid", "color": "#FFFFFF"})
-        background = self.processor.create_background(width, height, bg_config)
+
+        # Check if panoramic mode is enabled
+        if bg_config.get("panoramic", False) and total_screenshots > 1:
+            background = self.processor.create_panoramic_background(
+                width, height, bg_config, screenshot_index, total_screenshots
+            )
+        else:
+            background = self.processor.create_background(width, height, bg_config)
 
         # Load screenshot image if provided
         screen_image = None
-        if image_config and image_config.get("url"):
-            image_path = image_config["url"]
-            if os.path.exists(image_path):
+        if image_config:
+            # Use 'path' for local file path, fall back to 'url' for backwards compatibility
+            image_path = image_config.get("path") or image_config.get("url")
+            if image_path and os.path.exists(image_path):
                 screen_image = Image.open(image_path).convert("RGBA")
 
         # Create device frame if we have a screen image
@@ -125,6 +135,7 @@ class ScreenshotGenerator:
         naming_pattern = export_config.get("naming_pattern", "{locale}/{device}/{index}")
 
         screenshots = project.get("screenshots", [])
+        total_screenshots = len(screenshots)
 
         # Create ZIP file
         with zipfile.ZipFile(output_path, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -139,11 +150,14 @@ class ScreenshotGenerator:
 
                     for idx, screenshot in enumerate(screenshots):
                         # Generate screenshot for this device/locale
+                        # Pass panoramic info for continuous backgrounds
                         image_bytes = self.generate_preview(
                             screenshot,
                             locale=locale,
                             width=width,
-                            height=height
+                            height=height,
+                            screenshot_index=idx,
+                            total_screenshots=total_screenshots
                         )
 
                         # Generate filename
@@ -176,7 +190,8 @@ class ScreenshotGenerator:
 
         return {
             "id": file_id,
-            "url": save_path,
+            "url": f"http://localhost:8000/api/upload/{file_id}",
+            "path": save_path,
             "filename": filename,
             "width": width,
             "height": height

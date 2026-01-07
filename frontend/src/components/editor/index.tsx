@@ -9,6 +9,7 @@ import { Canvas } from "./Canvas";
 import { PropertiesPanel } from "./PropertiesPanel";
 import { TemplateGallery } from "./TemplateGallery";
 import { ExportDialog } from "./ExportDialog";
+import { BulkImportDialog } from "./BulkImportDialog";
 
 export function Editor() {
   const { project, selectScreenshot, selectedScreenshotId } = useEditorStore();
@@ -21,7 +22,7 @@ export function Editor() {
   }, [project.screenshots, selectedScreenshotId, selectScreenshot]);
 
   return (
-    <div className="h-screen flex flex-col bg-white">
+    <div className="h-screen flex flex-col bg-[#0a0a0a] overflow-hidden">
       <Header />
       <LocaleBar />
       <div className="flex-1 flex overflow-hidden">
@@ -31,6 +32,7 @@ export function Editor() {
       </div>
       <TemplateGallery />
       <ExportDialog />
+      <BulkImportDialog />
     </div>
   );
 }
