@@ -1,10 +1,137 @@
 "use client";
 
 import React from "react";
-import { Plus, Copy, Trash2, GripVertical, Image } from "lucide-react";
+import { Plus, Copy, Trash2, GripVertical, Image as ImageIcon } from "lucide-react";
 import { useEditorStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import type { ScreenshotConfig, SocialProofElement } from "@/types";
+
+// Generate background style for thumbnail
+function getBackgroundStyle(screenshot: ScreenshotConfig): React.CSSProperties {
+  const bg = screenshot.template.background;
+  const style: React.CSSProperties = {};
+
+  if (bg.type === "solid") {
+    style.backgroundColor = bg.color || "#1c1c1e";
+  } else if (bg.type === "gradient" && bg.gradient) {
+    const { type: gradType, angle, stops, center_x, center_y } = bg.gradient;
+    const gradientStops = stops.map((s) => `${s.color} ${s.position * 100}%`).join(", ");
+
+    if (gradType === "radial") {
+      const cx = (center_x ?? 0.5) * 100;
+      const cy = (center_y ?? 0.5) * 100;
+      style.background = `radial-gradient(circle at ${cx}% ${cy}%, ${gradientStops})`;
+    } else if (gradType === "conic") {
+      const cx = (center_x ?? 0.5) * 100;
+      const cy = (center_y ?? 0.5) * 100;
+      style.background = `conic-gradient(from ${angle || 0}deg at ${cx}% ${cy}%, ${gradientStops})`;
+    } else {
+      style.background = `linear-gradient(${angle}deg, ${gradientStops})`;
+    }
+  } else if (bg.type === "mesh" && bg.color_points) {
+    const meshGradients = bg.color_points.map((point) => {
+      const x = point.x * 100;
+      const y = point.y * 100;
+      const size = point.radius * 100;
+      return `radial-gradient(circle at ${x}% ${y}%, ${point.color} 0%, transparent ${size}%)`;
+    });
+    style.background = meshGradients.join(", ");
+    style.backgroundColor = bg.color_points[0]?.color || "#1c1c1e";
+  } else if (bg.type === "glassmorphism" || bg.type === "blobs") {
+    const gradients: string[] = [];
+    if (bg.blobs) {
+      bg.blobs.forEach((blob) => {
+        const x = blob.x * 100;
+        const y = blob.y * 100;
+        const size = blob.size * 80;
+        gradients.push(`radial-gradient(circle at ${x}% ${y}%, ${blob.color} 0%, transparent ${size}%)`);
+      });
+    }
+    if (bg.base_gradient && bg.base_gradient.stops) {
+      const baseStops = bg.base_gradient.stops.map((s) => `${s.color} ${s.position * 100}%`).join(", ");
+      gradients.push(`linear-gradient(${bg.base_gradient.angle || 135}deg, ${baseStops})`);
+    }
+    style.background = gradients.join(", ");
+    style.backgroundColor = bg.base_color || "#0D0D1A";
+  }
+
+  return style;
+}
+
+// Mini thumbnail preview component that mirrors Canvas rendering
+function ThumbnailPreview({ screenshot, locale }: { screenshot: ScreenshotConfig; locale: string }) {
+  const { device, image, texts } = screenshot;
+  const backgroundStyle = getBackgroundStyle(screenshot);
+
+  // Calculate device position (using stored position)
+  const deviceX = device.positionX * 100;
+  const deviceY = device.positionY * 100;
+
+  return (
+    <div className="w-full h-full relative overflow-hidden" style={backgroundStyle}>
+      {/* Text elements */}
+      {texts.map((text) => {
+        const content = text.translations[locale] || text.translations["en"] || "";
+        if (!content) return null;
+        return (
+          <div
+            key={text.id}
+            className="absolute left-0 right-0 px-2 text-center"
+            style={{
+              top: `${text.positionY * 100}%`,
+              transform: "translateY(-50%)",
+            }}
+          >
+            <span
+              className="inline-block text-[6px] font-semibold leading-tight"
+              style={{
+                color: text.style.color,
+                fontWeight: text.style.fontWeight,
+              }}
+            >
+              {content.length > 30 ? content.substring(0, 30) + "..." : content}
+            </span>
+          </div>
+        );
+      })}
+
+      {/* Device frame preview */}
+      <div
+        className="absolute"
+        style={{
+          left: `${deviceX}%`,
+          top: `${deviceY}%`,
+          transform: "translate(-50%, -50%)",
+          width: "55%",
+          aspectRatio: "9/19.5",
+        }}
+      >
+        <div
+          className={cn(
+            "w-full h-full rounded-[4px] overflow-hidden",
+            device.style === "none" ? "" : "bg-[#1c1c1e] border border-[#3a3a3c]"
+          )}
+          style={{
+            boxShadow: device.shadow ? "0 2px 8px rgba(0,0,0,0.3)" : undefined,
+          }}
+        >
+          {image?.url ? (
+            <img
+              src={image.url}
+              alt="Screenshot"
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-[#2c2c2e]">
+              <ImageIcon className="w-3 h-3 text-[#636366]" />
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function ScreenshotList() {
   const {
@@ -14,10 +141,11 @@ export function ScreenshotList() {
     addScreenshot,
     removeScreenshot,
     duplicateScreenshot,
+    currentLocale,
   } = useEditorStore();
 
   return (
-    <div className="w-56 border-r border-[#2c2c2e] bg-[#0a0a0a] flex flex-col h-full">
+    <div className="w-64 border-r border-[#2c2c2e] bg-[#0a0a0a] flex flex-col h-full">
       {/* Header */}
       <div className="px-4 py-4 border-b border-[#2c2c2e]">
         <div className="flex items-center justify-between">
@@ -50,7 +178,7 @@ export function ScreenshotList() {
             style={{ animationDelay: `${index * 50}ms` }}
             onClick={() => selectScreenshot(screenshot.id)}
           >
-            {/* Thumbnail preview */}
+            {/* Thumbnail preview - real-time rendering */}
             <div
               className={cn(
                 "aspect-[9/19.5] rounded-xl overflow-hidden border transition-all duration-200",
@@ -59,41 +187,19 @@ export function ScreenshotList() {
                   : "border-[#2c2c2e] group-hover:border-[#3a3a3c]"
               )}
             >
-              <div
-                className="w-full h-full flex items-center justify-center relative"
-                style={{
-                  background: screenshot.template.background.type === 'gradient'
-                    ? `linear-gradient(${screenshot.template.background.gradient?.angle || 180}deg, ${screenshot.template.background.gradient?.stops.map(s => s.color).join(', ')})`
-                    : screenshot.template.background.color || '#1c1c1e',
-                }}
-              >
+              <div className="w-full h-full relative">
+                {/* Real-time thumbnail preview */}
+                <ThumbnailPreview screenshot={screenshot} locale={currentLocale} />
+
                 {/* Screenshot number badge */}
                 <div className={cn(
-                  "absolute top-2 left-2 px-2 py-0.5 rounded-md text-[10px] font-bold transition-all duration-200",
+                  "absolute top-2 left-2 px-2 py-0.5 rounded-md text-[10px] font-bold transition-all duration-200 z-10",
                   selectedScreenshotId === screenshot.id
                     ? "bg-[#0a84ff] text-white"
                     : "bg-[#2c2c2e]/90 text-[#f5f5f7] shadow-sm"
                 )}>
                   {index + 1}
                 </div>
-
-                {/* Preview icon */}
-                {!screenshot.image?.url && (
-                  <div className="w-10 h-10 rounded-lg bg-white/10 backdrop-blur-sm flex items-center justify-center">
-                    <Image className="w-5 h-5 text-white/40" />
-                  </div>
-                )}
-
-                {/* Mini device preview if image exists */}
-                {screenshot.image?.url && (
-                  <div className="w-12 h-24 rounded-lg bg-[#1c1c1e] overflow-hidden shadow-lg border border-[#3a3a3c]">
-                    <img
-                      src={screenshot.image.url}
-                      alt={`Screenshot ${index + 1}`}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                )}
               </div>
             </div>
 

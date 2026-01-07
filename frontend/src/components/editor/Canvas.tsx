@@ -1067,23 +1067,22 @@ export function Canvas() {
       </div>
 
       {/* Canvas area */}
-      <div className="flex-1 p-6 md:p-10 overflow-auto">
+      <div className="flex-1 p-4 md:p-6 lg:p-8 overflow-auto">
         <div className="flex items-center justify-center min-h-full">
           {/* Screenshot Preview - with premium shadow and frame */}
-          <div className="relative">
+          <div className="relative w-full max-w-[420px] xl:max-w-[480px] 2xl:max-w-[520px]">
             {/* Ambient shadow */}
             <div
               className="absolute inset-0 rounded-[32px] blur-3xl opacity-20 scale-95"
               style={backgroundStyle}
             />
 
-            {/* Main preview */}
+            {/* Main preview - responsive sizing */}
             <div
               ref={canvasRef}
-              className="relative bg-[#1c1c1e] rounded-[28px] overflow-hidden animate-fadeInScale"
+              className="relative bg-[#1c1c1e] rounded-[28px] overflow-hidden animate-fadeInScale w-full"
               style={{
-                width: "340px",
-                height: "736px",
+                aspectRatio: "9 / 19.5",
                 boxShadow: "0 25px 80px -20px rgba(0,0,0,0.5), 0 10px 30px -10px rgba(0,0,0,0.3), inset 0 0 0 1px rgba(255,255,255,0.05)",
                 ...backgroundStyle,
               }}
