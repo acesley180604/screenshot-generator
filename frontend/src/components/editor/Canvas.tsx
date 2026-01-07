@@ -373,6 +373,7 @@ interface DraggableTextProps {
     id: string;
     positionY: number;
     style: {
+      fontFamily: string;
       fontSize: number;
       fontWeight: number;
       color: string;
