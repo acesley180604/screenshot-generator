@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 interface UploadedImage {
@@ -25,6 +26,8 @@ interface UploadedImage {
   uploading: boolean;
   uploaded: boolean;
   error?: string;
+  headline: string;
+  subtitle: string;
 }
 
 export function BulkImportDialog() {
@@ -36,9 +39,9 @@ export function BulkImportDialog() {
   } = useEditorStore();
 
   const [images, setImages] = useState<UploadedImage[]>([]);
-  const [headline, setHeadline] = useState("");
-  const [subtitle, setSubtitle] = useState("");
   const [isImporting, setIsImporting] = useState(false);
+  const [bulkHeadlines, setBulkHeadlines] = useState("");
+  const [bulkSubtitles, setBulkSubtitles] = useState("");
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const newImages = acceptedFiles.map((file) => ({
@@ -46,9 +49,59 @@ export function BulkImportDialog() {
       preview: URL.createObjectURL(file),
       uploading: false,
       uploaded: false,
+      headline: "",
+      subtitle: "",
     }));
     setImages((prev) => [...prev, ...newImages]);
   }, []);
+
+  // Parse bulk text input (one per line) - handles both newlines and tab-separated (Excel)
+  const parseBulkText = (text: string): string[] => {
+    // First try splitting by newlines, if only 1 result try tabs (Excel horizontal copy)
+    let lines = text.split('\n').map(line => line.trim());
+    if (lines.length === 1 && text.includes('\t')) {
+      lines = text.split('\t').map(line => line.trim());
+    }
+    return lines.filter(line => line.length > 0);
+  };
+
+  // Auto-apply headlines when pasting/typing - like Excel
+  const handleHeadlinesChange = (text: string) => {
+    setBulkHeadlines(text);
+    const headlines = parseBulkText(text);
+    if (headlines.length > 0) {
+      setImages(prev => prev.map((img, idx) => ({
+        ...img,
+        headline: headlines[idx] !== undefined ? headlines[idx] : img.headline,
+      })));
+    }
+  };
+
+  // Auto-apply subtitles when pasting/typing - like Excel
+  const handleSubtitlesChange = (text: string) => {
+    setBulkSubtitles(text);
+    const subtitles = parseBulkText(text);
+    if (subtitles.length > 0) {
+      setImages(prev => prev.map((img, idx) => ({
+        ...img,
+        subtitle: subtitles[idx] !== undefined ? subtitles[idx] : img.subtitle,
+      })));
+    }
+  };
+
+  // Update individual image headline
+  const updateImageHeadline = (index: number, headline: string) => {
+    setImages(prev => prev.map((img, idx) =>
+      idx === index ? { ...img, headline } : img
+    ));
+  };
+
+  // Update individual image subtitle
+  const updateImageSubtitle = (index: number, subtitle: string) => {
+    setImages(prev => prev.map((img, idx) =>
+      idx === index ? { ...img, subtitle } : img
+    ));
+  };
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -70,13 +123,15 @@ export function BulkImportDialog() {
   };
 
   const handleImport = async () => {
-    if (images.length === 0 || !headline.trim()) return;
+    // Check that all images have headlines
+    const allHaveHeadlines = images.every(img => img.headline.trim());
+    if (images.length === 0 || !allHaveHeadlines) return;
 
     setIsImporting(true);
 
     try {
       // Upload all images
-      const uploadedImages: { url: string; filename: string }[] = [];
+      const uploadedImages: { url: string; filename: string; headline: string; subtitle: string }[] = [];
 
       for (let i = 0; i < images.length; i++) {
         setImages((prev) =>
@@ -90,6 +145,8 @@ export function BulkImportDialog() {
           uploadedImages.push({
             url: result.url,
             filename: images[i].file.name,
+            headline: images[i].headline,
+            subtitle: images[i].subtitle,
           });
 
           setImages((prev) =>
@@ -108,13 +165,13 @@ export function BulkImportDialog() {
 
       // Create screenshots with the uploaded images
       if (uploadedImages.length > 0) {
-        bulkImportScreenshots(uploadedImages, headline, subtitle || undefined);
+        bulkImportScreenshots(uploadedImages);
 
         // Clean up
         images.forEach((img) => URL.revokeObjectURL(img.preview));
         setImages([]);
-        setHeadline("");
-        setSubtitle("");
+        setBulkHeadlines("");
+        setBulkSubtitles("");
       }
     } finally {
       setIsImporting(false);
@@ -125,14 +182,16 @@ export function BulkImportDialog() {
     if (!isImporting) {
       images.forEach((img) => URL.revokeObjectURL(img.preview));
       setImages([]);
-      setHeadline("");
-      setSubtitle("");
+      setBulkHeadlines("");
+      setBulkSubtitles("");
       setShowBulkImportDialog(false);
     }
   };
 
   const allUploaded = images.length > 0 && images.every((img) => img.uploaded);
-  const canImport = images.length > 0 && headline.trim() && !isImporting;
+  const allHaveHeadlines = images.every(img => img.headline.trim());
+  const canImport = images.length > 0 && allHaveHeadlines && !isImporting;
+  const missingHeadlinesCount = images.filter(img => !img.headline.trim()).length;
 
   return (
     <Dialog open={showBulkImportDialog} onOpenChange={handleClose}>
@@ -145,7 +204,7 @@ export function BulkImportDialog() {
             Bulk Import Screenshots
           </DialogTitle>
           <DialogDescription>
-            Upload multiple screenshots at once and set a shared headline for all
+            Upload multiple screenshots and import headlines/subtitles in bulk (one per line)
           </DialogDescription>
         </DialogHeader>
 
@@ -238,56 +297,120 @@ export function BulkImportDialog() {
             )}
           </div>
 
-          {/* Text Input */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Type className="w-4 h-4 text-[#8e8e93]" />
-              <Label className="text-[11px] font-semibold text-[#8e8e93] uppercase tracking-wide">
-                Shared Text (applies to all)
-              </Label>
-            </div>
+          {/* Bulk Text Import */}
+          {images.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Type className="w-4 h-4 text-[#8e8e93]" />
+                <Label className="text-[11px] font-semibold text-[#8e8e93] uppercase tracking-wide">
+                  Bulk Text Import (one per line)
+                </Label>
+              </div>
 
-            <div>
-              <Label className="text-sm font-medium text-[#f5f5f7] mb-1.5 block">
-                Headline <span className="text-[#ff453a]">*</span>
-              </Label>
-              <Input
-                value={headline}
-                onChange={(e) => setHeadline(e.target.value)}
-                placeholder="Enter headline for all screenshots..."
-                className="h-11 text-base"
-                disabled={isImporting}
-              />
-              <p className="text-[11px] text-[#8e8e93] mt-1">
-                This headline will be applied to all {images.length || 0} screenshots
-              </p>
-            </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium text-[#f5f5f7] mb-1.5 block">
+                    Headlines <span className="text-[#ff453a]">*</span>
+                  </Label>
+                  <Textarea
+                    value={bulkHeadlines}
+                    onChange={(e) => handleHeadlinesChange(e.target.value)}
+                    placeholder={`Paste headlines here (one per line):\nHeadline 1\nHeadline 2\nHeadline 3\n...`}
+                    className="h-24 text-sm resize-none"
+                    disabled={isImporting}
+                  />
+                  <p className="text-[11px] text-[#8e8e93] mt-1.5">
+                    {parseBulkText(bulkHeadlines).length} of {images.length} headlines • Auto-applies on paste
+                  </p>
+                </div>
 
-            <div>
-              <Label className="text-sm font-medium text-[#f5f5f7] mb-1.5 block">
-                Subtitle (optional)
-              </Label>
-              <Input
-                value={subtitle}
-                onChange={(e) => setSubtitle(e.target.value)}
-                placeholder="Enter optional subtitle..."
-                className="h-10"
-                disabled={isImporting}
-              />
+                <div>
+                  <Label className="text-sm font-medium text-[#f5f5f7] mb-1.5 block">
+                    Subtitles (optional)
+                  </Label>
+                  <Textarea
+                    value={bulkSubtitles}
+                    onChange={(e) => handleSubtitlesChange(e.target.value)}
+                    placeholder={`Paste subtitles here (one per line):\nSubtitle 1\nSubtitle 2\nSubtitle 3\n...`}
+                    className="h-24 text-sm resize-none"
+                    disabled={isImporting}
+                  />
+                  <p className="text-[11px] text-[#8e8e93] mt-1.5">
+                    {parseBulkText(bulkSubtitles).length} of {images.length} subtitles • Auto-applies on paste
+                  </p>
+                </div>
+              </div>
+
+              {/* Per-screenshot preview with editable fields */}
+              <div className="space-y-2 mt-4">
+                <Label className="text-[11px] font-semibold text-[#8e8e93] uppercase tracking-wide">
+                  Per-Screenshot Text Preview
+                </Label>
+                <div className="max-h-48 overflow-y-auto space-y-2 rounded-xl bg-[#1c1c1e] p-3">
+                  {images.map((img, index) => (
+                    <div
+                      key={index}
+                      className={cn(
+                        "flex gap-3 p-2 rounded-lg",
+                        img.headline.trim() ? "bg-[#2c2c2e]" : "bg-[#2c2c2e] border border-[#ff453a]/30"
+                      )}
+                    >
+                      <div className="flex-shrink-0 w-8 h-8 rounded-md overflow-hidden bg-[#3a3a3c]">
+                        <img
+                          src={img.preview}
+                          alt={`Screenshot ${index + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold text-[#8e8e93] w-4">{index + 1}</span>
+                          <Input
+                            value={img.headline}
+                            onChange={(e) => updateImageHeadline(index, e.target.value)}
+                            placeholder="Headline *"
+                            className="h-7 text-xs flex-1"
+                            disabled={isImporting}
+                          />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="w-4" />
+                          <Input
+                            value={img.subtitle}
+                            onChange={(e) => updateImageSubtitle(index, e.target.value)}
+                            placeholder="Subtitle (optional)"
+                            className="h-7 text-xs flex-1"
+                            disabled={isImporting}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Summary */}
           {images.length > 0 && (
-            <div className="rounded-xl bg-gradient-to-br from-[#2c2c2e] to-[#1c1c1e] p-4 border border-[#3a3a3c]">
+            <div className={cn(
+              "rounded-xl bg-gradient-to-br p-4 border",
+              allHaveHeadlines
+                ? "from-[#2c2c2e] to-[#1c1c1e] border-[#3a3a3c]"
+                : "from-[#ff453a]/10 to-[#1c1c1e] border-[#ff453a]/30"
+            )}>
               <div className="flex items-center gap-3">
-                <Sparkles className="w-5 h-5 text-[#0a84ff]" />
+                <Sparkles className={cn("w-5 h-5", allHaveHeadlines ? "text-[#0a84ff]" : "text-[#ff453a]")} />
                 <div>
                   <p className="text-sm font-medium text-[#f5f5f7]">
-                    Ready to create {images.length} screenshot{images.length > 1 ? "s" : ""}
+                    {allHaveHeadlines
+                      ? `Ready to create ${images.length} screenshot${images.length > 1 ? "s" : ""}`
+                      : `${missingHeadlinesCount} screenshot${missingHeadlinesCount > 1 ? "s" : ""} missing headline`}
                   </p>
                   <p className="text-xs text-[#8e8e93]">
-                    Each will have the same headline and styling
+                    {allHaveHeadlines
+                      ? "Each screenshot will have its own headline and subtitle"
+                      : "Add headlines for all screenshots to continue"}
                   </p>
                 </div>
               </div>

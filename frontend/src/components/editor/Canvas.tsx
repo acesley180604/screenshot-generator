@@ -6,7 +6,7 @@ import { Smartphone, Plus, ImageIcon, Layers, Move } from "lucide-react";
 import { useEditorStore } from "@/lib/store";
 import { uploadApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import type { LayoutDevicePosition } from "@/types";
+import type { LayoutDevicePosition, SocialProofElement } from "@/types";
 
 // Font family mapping for CSS variables
 const FONT_FAMILY_MAP: Record<string, string> = {
@@ -487,6 +487,382 @@ function DraggableText({
   );
 }
 
+// University logo data for rendering
+const UNIVERSITY_LOGOS: Record<string, { name: string; shortName: string }> = {
+  harvard: { name: "Harvard", shortName: "H" },
+  stanford: { name: "Stanford", shortName: "S" },
+  mit: { name: "MIT", shortName: "MIT" },
+  yale: { name: "Yale", shortName: "Y" },
+  princeton: { name: "Princeton", shortName: "P" },
+  columbia: { name: "Columbia", shortName: "C" },
+  berkeley: { name: "Berkeley", shortName: "B" },
+  oxford: { name: "Oxford", shortName: "Ox" },
+  cambridge: { name: "Cambridge", shortName: "Cam" },
+  caltech: { name: "Caltech", shortName: "Cal" },
+};
+
+// Press logo data with font styling
+const PRESS_LOGOS: Record<string, { name: string; fontStyle?: string; fontWeight?: number; fontFamily?: string }> = {
+  nytimes: { name: "The New York Times", fontFamily: "Georgia, serif", fontStyle: "italic" },
+  forbes: { name: "Forbes", fontFamily: "Georgia, serif", fontWeight: 700 },
+  bbc: { name: "BBC", fontWeight: 700 },
+  wsj: { name: "The Wall Street Journal", fontFamily: "Georgia, serif" },
+  bloomberg: { name: "Bloomberg", fontWeight: 600 },
+  techcrunch: { name: "TechCrunch", fontWeight: 700 },
+  wired: { name: "WIRED", fontWeight: 700, fontFamily: "sans-serif" },
+  verge: { name: "The Verge", fontWeight: 600 },
+  vogue: { name: "VOGUE", fontWeight: 400, fontFamily: "Georgia, serif" },
+  nbc: { name: "NBC", fontWeight: 700 },
+  cnn: { name: "CNN", fontWeight: 700 },
+  today: { name: "TODAY", fontWeight: 700 },
+  ellen: { name: "ellen", fontWeight: 300, fontFamily: "sans-serif" },
+  producthunt: { name: "Product Hunt", fontWeight: 600 },
+  mashable: { name: "Mashable", fontWeight: 700 },
+  fastcompany: { name: "Fast Company", fontWeight: 600 },
+  inc: { name: "Inc.", fontFamily: "Georgia, serif", fontStyle: "italic" },
+  entrepreneur: { name: "Entrepreneur", fontWeight: 600 },
+};
+
+// Award types with laurel wreath support
+const AWARD_PRESETS: Record<string, { name: string; subtitle?: string }> = {
+  "apple-design": { name: "Apple Design Award", subtitle: "Social Impact" },
+  "webby": { name: "The Webby Awards" },
+  "editors-choice": { name: "Editor's Choice" },
+  "app-of-day": { name: "App of the Day" },
+  "best-of-year": { name: "Best of 2024" },
+  "google-play": { name: "Google Play Best" },
+};
+
+// Render stars for rating
+function RatingStars({ rating, color }: { rating: number; color: string }) {
+  const fullStars = Math.floor(rating);
+  const hasHalf = rating % 1 >= 0.5;
+
+  return (
+    <div className="flex items-center gap-0.5">
+      {[...Array(5)].map((_, i) => (
+        <svg
+          key={i}
+          className="w-3 h-3"
+          viewBox="0 0 20 20"
+          fill={i < fullStars || (i === fullStars && hasHalf) ? color : "rgba(255,255,255,0.3)"}
+        >
+          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+        </svg>
+      ))}
+    </div>
+  );
+}
+
+// Laurel Wreath SVG component
+function LaurelWreath({ color = "#1a1a1a", size = 24, flip = false }: { color?: string; size?: number; flip?: boolean }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      style={{ transform: flip ? "scaleX(-1)" : undefined }}
+    >
+      <path
+        d="M12 22c-1.5-2-2.5-4-3-6.5-.3-1.5-.3-3 0-4.5.5-2 1.5-3.5 3-5M12 22c-2-1-4-2.5-5.5-4.5-1-1.5-1.5-3-1.5-4.5 0-2 1-4 2.5-5.5M12 22c-3-.5-5.5-2-7.5-4-1.5-1.5-2.5-3.5-2.5-5.5 0-1.5.5-3 1.5-4.5"
+        stroke={color}
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+// Social Proof Element Renderer
+function SocialProofRenderer({ element }: { element: SocialProofElement }) {
+  if (!element.enabled) return null;
+
+  const baseStyle: React.CSSProperties = {
+    position: "absolute",
+    left: `${element.positionX * 100}%`,
+    top: `${element.positionY * 100}%`,
+    transform: `translate(-50%, -50%) scale(${element.style.scale})`,
+    opacity: element.style.opacity,
+    zIndex: 20,
+  };
+
+  const containerStyle: React.CSSProperties = {
+    backgroundColor: element.style.backgroundColor || "rgba(0,0,0,0.4)",
+    backdropFilter: element.style.blur ? `blur(${element.style.blur}px)` : "blur(8px)",
+    borderRadius: "12px",
+    padding: "6px 12px",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+  };
+
+  switch (element.type) {
+    case "rating":
+      return (
+        <div style={baseStyle}>
+          <div style={containerStyle}>
+            {element.showStars && (
+              <RatingStars rating={element.rating || 4.8} color={element.style.secondaryColor} />
+            )}
+            <span style={{ color: element.style.color, fontSize: "11px", fontWeight: 600 }}>
+              {element.rating?.toFixed(1)}
+            </span>
+            {element.ratingCount && (
+              <span style={{ color: "rgba(255,255,255,0.6)", fontSize: "9px" }}>
+                ({element.ratingCount})
+              </span>
+            )}
+          </div>
+        </div>
+      );
+
+    case "downloads":
+      return (
+        <div style={baseStyle}>
+          <div style={containerStyle}>
+            <svg className="w-3 h-3" fill={element.style.secondaryColor} viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+            <span style={{ color: element.style.color, fontSize: "11px", fontWeight: 600 }}>
+              {element.downloadCount || "10M+"} downloads
+            </span>
+          </div>
+        </div>
+      );
+
+    case "award":
+      // Headspace-style award badge with laurel wreaths
+      return (
+        <div style={baseStyle}>
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            padding: "8px 16px",
+            backgroundColor: element.style.backgroundColor || "transparent",
+            borderRadius: "8px",
+          }}>
+            {/* Left laurel */}
+            <LaurelWreath color={element.style.color} size={20} />
+
+            {/* Award content */}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "2px" }}>
+              {/* Apple logo or award icon */}
+              {element.awardType === "editors-choice" || element.awardType === "app-of-the-day" ? (
+                <svg style={{ width: "12px", height: "12px", fill: element.style.color }} viewBox="0 0 24 24">
+                  <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+                </svg>
+              ) : null}
+              <span style={{
+                color: element.style.color,
+                fontSize: "9px",
+                fontWeight: 600,
+                textAlign: "center",
+                lineHeight: 1.2,
+              }}>
+                {element.awardText || "Apple Design Award"}
+              </span>
+              {element.awardType === "apple-design" && (
+                <span style={{ color: element.style.secondaryColor, fontSize: "8px", fontWeight: 500 }}>
+                  Social Impact
+                </span>
+              )}
+            </div>
+
+            {/* Right laurel */}
+            <LaurelWreath color={element.style.color} size={20} flip />
+          </div>
+        </div>
+      );
+
+    case "university":
+      return (
+        <div style={baseStyle}>
+          <div style={{ ...containerStyle, flexDirection: "column", gap: "4px", padding: "8px 14px" }}>
+            {element.logosLabel && (
+              <span style={{ color: "rgba(255,255,255,0.7)", fontSize: "8px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                {element.logosLabel}
+              </span>
+            )}
+            <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+              {(element.logos || []).slice(0, 5).map((logoId) => {
+                const uni = UNIVERSITY_LOGOS[logoId];
+                if (!uni) return null;
+                return (
+                  <div
+                    key={logoId}
+                    style={{
+                      width: "24px",
+                      height: "24px",
+                      borderRadius: "6px",
+                      backgroundColor: "rgba(255,255,255,0.15)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "8px",
+                      fontWeight: 700,
+                      color: element.style.color,
+                    }}
+                  >
+                    {uni.shortName}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      );
+
+    case "testimonial":
+      return (
+        <div style={baseStyle}>
+          <div style={{ ...containerStyle, flexDirection: "column", gap: "4px", padding: "10px 14px", maxWidth: "200px" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: "4px" }}>
+              <span style={{ color: element.style.secondaryColor, fontSize: "16px", lineHeight: 1 }}>"</span>
+              <span style={{ color: element.style.color, fontSize: "10px", fontStyle: "italic", lineHeight: 1.3 }}>
+                {element.testimonialText || "Amazing app!"}
+              </span>
+            </div>
+            {element.testimonialAuthor && (
+              <span style={{ color: "rgba(255,255,255,0.6)", fontSize: "8px", alignSelf: "flex-end" }}>
+                — {element.testimonialAuthor}
+              </span>
+            )}
+          </div>
+        </div>
+      );
+
+    case "press":
+      // Headspace-style vertical press logos
+      return (
+        <div style={baseStyle}>
+          <div style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: "6px",
+            padding: "10px 20px",
+            backgroundColor: element.style.backgroundColor || "transparent",
+            borderRadius: "12px",
+          }}>
+            {(element.pressLogos || []).map((logoId) => {
+              const logo = PRESS_LOGOS[logoId];
+              if (!logo) return null;
+              return (
+                <span
+                  key={logoId}
+                  style={{
+                    color: element.style.color,
+                    fontSize: "14px",
+                    fontWeight: logo.fontWeight || 400,
+                    fontStyle: logo.fontStyle || "normal",
+                    fontFamily: logo.fontFamily || "inherit",
+                    opacity: 0.85,
+                    letterSpacing: logo.name === "VOGUE" ? "3px" : logo.name === "WIRED" ? "2px" : "normal",
+                  }}
+                >
+                  {logo.name}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      );
+
+    case "trusted-by":
+      return (
+        <div style={baseStyle}>
+          <div style={containerStyle}>
+            <svg className="w-3 h-3" fill={element.style.secondaryColor} viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+            </svg>
+            <span style={{ color: element.style.color, fontSize: "11px", fontWeight: 600 }}>
+              Trusted by {element.downloadCount || "2M+"} users
+            </span>
+          </div>
+        </div>
+      );
+
+    case "feature-cards":
+      // Headspace-style feature cards grid
+      const cards = element.featureCards || [];
+      const columns = cards.length <= 4 ? 2 : cards.length <= 6 ? 2 : 3;
+      return (
+        <div style={baseStyle}>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: `repeat(${columns}, 1fr)`,
+            gap: "8px",
+            padding: "8px",
+          }}>
+            {cards.map((card) => (
+              <div
+                key={card.id}
+                style={{
+                  width: "70px",
+                  height: "70px",
+                  borderRadius: "12px",
+                  backgroundColor: card.color,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  position: "relative",
+                  overflow: "hidden",
+                }}
+              >
+                {/* Decorative background pattern */}
+                {card.iconType === "dots" && (
+                  <div style={{ position: "absolute", top: "8px", right: "8px", opacity: 0.4 }}>
+                    <div style={{ display: "flex", gap: "3px" }}>
+                      <div style={{ width: "4px", height: "4px", borderRadius: "50%", backgroundColor: "white" }} />
+                      <div style={{ width: "4px", height: "4px", borderRadius: "50%", backgroundColor: "white" }} />
+                    </div>
+                  </div>
+                )}
+                {card.iconType === "stars" && (
+                  <div style={{ position: "absolute", top: "8px", right: "8px", opacity: 0.5 }}>
+                    <svg width="10" height="10" fill="white" viewBox="0 0 24 24">
+                      <path d="M12 2L9.5 9.5H2l6 4.5-2.5 7.5L12 17l6.5 4.5-2.5-7.5 6-4.5h-7.5L12 2z"/>
+                    </svg>
+                  </div>
+                )}
+                {card.iconType === "circles" && (
+                  <div style={{ position: "absolute", bottom: "-10px", left: "-10px", opacity: 0.3 }}>
+                    <div style={{ width: "40px", height: "40px", borderRadius: "50%", border: "2px solid white" }} />
+                  </div>
+                )}
+                {card.iconType === "waves" && (
+                  <div style={{ position: "absolute", bottom: "0", left: "0", right: "0", opacity: 0.3 }}>
+                    <svg width="100%" height="20" viewBox="0 0 100 20" preserveAspectRatio="none">
+                      <path d="M0 20 Q25 5 50 15 T100 10 V20 Z" fill="white"/>
+                    </svg>
+                  </div>
+                )}
+
+                {/* Label */}
+                <span style={{
+                  color: "white",
+                  fontSize: "9px",
+                  fontWeight: 600,
+                  textAlign: "center",
+                  zIndex: 1,
+                  textShadow: "0 1px 2px rgba(0,0,0,0.2)",
+                }}>
+                  {card.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+
+    default:
+      return null;
+  }
+}
+
 export function Canvas() {
   const {
     project,
@@ -576,7 +952,7 @@ export function Canvas() {
     );
   }
 
-  const { template, device, image, texts } = selectedScreenshot;
+  const { template, device, image, texts, socialProof } = selectedScreenshot;
   const layout = LAYOUTS[selectedLayout] || LAYOUTS["single-center"];
 
   // Generate background style
@@ -752,6 +1128,11 @@ export function Canvas() {
                   />
                 );
               })}
+
+              {/* Social Proof Elements */}
+              {socialProof?.map((element) => (
+                <SocialProofRenderer key={element.id} element={element} />
+              ))}
 
               {/* Click to deselect text */}
               <div

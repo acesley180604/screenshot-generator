@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Palette, Type, Smartphone, Plus, Trash2, ChevronDown } from "lucide-react";
+import { Palette, Type, Smartphone, Plus, Trash2, ChevronDown, Award } from "lucide-react";
 import { useEditorStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { SocialProofPanel } from "./SocialProofPanel";
 
 const DEVICE_MODELS = [
   { id: "iphone-6.9", name: "iPhone 16 Pro Max", size: "6.9\"" },
@@ -873,6 +874,11 @@ export function PropertiesPanel() {
             </div>
           ))}
         </div>
+      </Section>
+
+      {/* Social Proof Section */}
+      <Section icon={<Award className="w-3.5 h-3.5" />} title="Social Proof" defaultOpen={false}>
+        <SocialProofPanel />
       </Section>
     </div>
   );

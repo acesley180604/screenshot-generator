@@ -9,6 +9,7 @@ import type {
   TextStyle,
   BackgroundConfig,
   ExportConfig,
+  SocialProofElement,
 } from '@/types';
 
 // Default values - Using modern Inter font
@@ -138,10 +139,17 @@ interface EditorState {
   // Actions - Bulk Import
   showBulkImportDialog: boolean;
   setShowBulkImportDialog: (show: boolean) => void;
-  bulkImportScreenshots: (images: { url: string; filename: string }[], headline: string, subtitle?: string) => void;
+  bulkImportScreenshots: (images: { url: string; filename: string; headline: string; subtitle: string }[]) => void;
   applyHeadlineToAll: (headline: string, locale: string) => void;
   applySubtitleToAll: (subtitle: string, locale: string) => void;
   applyTemplateToAll: (template: TemplateConfig) => void;
+
+  // Social Proof actions
+  addSocialProof: (screenshotId: string, element: SocialProofElement) => void;
+  updateSocialProof: (screenshotId: string, elementId: string, updates: Partial<SocialProofElement>) => void;
+  removeSocialProof: (screenshotId: string, elementId: string) => void;
+  toggleSocialProof: (screenshotId: string, elementId: string) => void;
+  applySocialProofToAll: (element: SocialProofElement) => void;
 
   // Helpers
   getSelectedScreenshot: () => ScreenshotConfig | undefined;
@@ -414,7 +422,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setIsGeneratingPreview: (generating) => set({ isGeneratingPreview: generating }),
 
   // Bulk Import actions
-  bulkImportScreenshots: (images, headline, subtitle) => set((state) => {
+  bulkImportScreenshots: (images) => set((state) => {
     const newScreenshots: ScreenshotConfig[] = images.map((img, index) => ({
       id: uuid(),
       order: index,
@@ -425,14 +433,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         {
           id: uuid(),
           type: 'headline' as const,
-          translations: { [state.currentLocale]: headline },
+          translations: { [state.currentLocale]: img.headline },
           style: { ...defaultTextStyle },
           positionY: 0.08,
         },
-        ...(subtitle ? [{
+        ...(img.subtitle ? [{
           id: uuid(),
           type: 'subtitle' as const,
-          translations: { [state.currentLocale]: subtitle },
+          translations: { [state.currentLocale]: img.subtitle },
           style: { ...defaultTextStyle, fontSize: 32, fontWeight: 400, color: '#666666' },
           positionY: 0.14,
         }] : []),
@@ -484,6 +492,90 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         ...s,
         template,
       })),
+    },
+  })),
+
+  // Social Proof actions
+  addSocialProof: (screenshotId, element) => set((state) => ({
+    project: {
+      ...state.project,
+      screenshots: state.project.screenshots.map((s) =>
+        s.id === screenshotId
+          ? { ...s, socialProof: [...(s.socialProof || []), element] }
+          : s
+      ),
+    },
+  })),
+
+  updateSocialProof: (screenshotId, elementId, updates) => set((state) => ({
+    project: {
+      ...state.project,
+      screenshots: state.project.screenshots.map((s) =>
+        s.id === screenshotId
+          ? {
+              ...s,
+              socialProof: (s.socialProof || []).map((sp) =>
+                sp.id === elementId ? { ...sp, ...updates } : sp
+              ),
+            }
+          : s
+      ),
+    },
+  })),
+
+  removeSocialProof: (screenshotId, elementId) => set((state) => ({
+    project: {
+      ...state.project,
+      screenshots: state.project.screenshots.map((s) =>
+        s.id === screenshotId
+          ? { ...s, socialProof: (s.socialProof || []).filter((sp) => sp.id !== elementId) }
+          : s
+      ),
+    },
+  })),
+
+  toggleSocialProof: (screenshotId, elementId) => set((state) => ({
+    project: {
+      ...state.project,
+      screenshots: state.project.screenshots.map((s) =>
+        s.id === screenshotId
+          ? {
+              ...s,
+              socialProof: (s.socialProof || []).map((sp) =>
+                sp.id === elementId ? { ...sp, enabled: !sp.enabled } : sp
+              ),
+            }
+          : s
+      ),
+    },
+  })),
+
+  applySocialProofToAll: (element) => set((state) => ({
+    project: {
+      ...state.project,
+      screenshots: state.project.screenshots.map((s) => {
+        // Check if this screenshot already has this type of social proof
+        const existingIndex = (s.socialProof || []).findIndex(
+          (sp) => sp.type === element.type
+        );
+        const newElement = { ...element, id: uuid() };
+
+        if (existingIndex >= 0) {
+          // Update existing element of same type
+          return {
+            ...s,
+            socialProof: (s.socialProof || []).map((sp, idx) =>
+              idx === existingIndex ? newElement : sp
+            ),
+          };
+        } else {
+          // Add new element
+          return {
+            ...s,
+            socialProof: [...(s.socialProof || []), newElement],
+          };
+        }
+      }),
     },
   })),
 

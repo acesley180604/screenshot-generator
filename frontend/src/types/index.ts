@@ -98,6 +98,70 @@ export interface LocalizedText {
   positionY: number;
 }
 
+// Social Proof Types
+export type SocialProofType =
+  | 'rating'           // App Store rating with stars
+  | 'downloads'        // Download count badge
+  | 'award'            // Award badge (Editor's Choice, App of the Day)
+  | 'university'       // University logos row
+  | 'testimonial'      // User testimonial quote
+  | 'press'            // Press/media mentions
+  | 'trusted-by'       // "Trusted by X users"
+  | 'feature-cards';   // Feature cards grid (like Headspace)
+
+// Feature card for feature-cards type
+export interface FeatureCard {
+  id: string;
+  label: string;
+  color: string;        // Background color
+  iconType?: 'dots' | 'stars' | 'circles' | 'waves' | 'gradient';
+}
+
+// Social Proof Element
+export interface SocialProofElement {
+  id: string;
+  type: SocialProofType;
+  enabled: boolean;
+  positionY: number;
+  positionX: number;
+
+  // Rating specific
+  rating?: number;           // 4.8
+  ratingCount?: string;      // "125K ratings"
+  showStars?: boolean;
+
+  // Downloads specific
+  downloadCount?: string;    // "10M+"
+
+  // Award specific
+  awardType?: 'apple-design' | 'webby' | 'editors-choice' | 'app-of-the-day' | 'best-of-year' | 'custom';
+  awardText?: string;
+
+  // University/Brand logos
+  logos?: string[];          // Array of logo identifiers
+  logosLabel?: string;       // "Used at" or "Trusted by students at"
+
+  // Testimonial
+  testimonialText?: string;
+  testimonialAuthor?: string;
+
+  // Press mentions
+  pressLogos?: string[];     // Media outlet identifiers
+
+  // Feature cards
+  featureCards?: FeatureCard[];
+
+  // Styling
+  style: {
+    scale: number;
+    opacity: number;
+    color: string;           // Primary color
+    secondaryColor: string;  // Secondary color (stars, accents)
+    backgroundColor?: string;
+    blur?: number;           // Glassmorphism effect
+  };
+}
+
 // Device configuration
 export interface DeviceConfig {
   model: string;
@@ -137,6 +201,7 @@ export interface ScreenshotConfig {
   device: DeviceConfig;
   image?: ImageConfig;
   texts: LocalizedText[];
+  socialProof?: SocialProofElement[];
 }
 
 // Project
