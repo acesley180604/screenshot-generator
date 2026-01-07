@@ -8,6 +8,26 @@ import { uploadApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type { LayoutDevicePosition } from "@/types";
 
+// Font family mapping for CSS variables
+const FONT_FAMILY_MAP: Record<string, string> = {
+  "Inter": "var(--font-inter), system-ui, sans-serif",
+  "Poppins": "var(--font-poppins), system-ui, sans-serif",
+  "Plus Jakarta Sans": "var(--font-plus-jakarta), system-ui, sans-serif",
+  "DM Sans": "var(--font-dm-sans), system-ui, sans-serif",
+  "Space Grotesk": "var(--font-space-grotesk), system-ui, sans-serif",
+  "Outfit": "var(--font-outfit), system-ui, sans-serif",
+  "Manrope": "var(--font-manrope), system-ui, sans-serif",
+  "Montserrat": "var(--font-montserrat), system-ui, sans-serif",
+  "Raleway": "var(--font-raleway), system-ui, sans-serif",
+  "Work Sans": "var(--font-work-sans), system-ui, sans-serif",
+  "SF Pro Display": "-apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif",
+};
+
+// Helper to get font family CSS value
+function getFontFamily(fontFamily: string): string {
+  return FONT_FAMILY_MAP[fontFamily] || FONT_FAMILY_MAP["Inter"];
+}
+
 // Available layouts for the canvas
 const LAYOUTS: Record<string, { devices: LayoutDevicePosition[], name: string, icon: string }> = {
   "custom": {
@@ -450,6 +470,7 @@ function DraggableText({
       <span
         className="animate-fadeInUp inline-block select-none"
         style={{
+          fontFamily: getFontFamily(text.style.fontFamily),
           fontSize: `${text.style.fontSize / 3.5}px`,
           fontWeight: text.style.fontWeight,
           color: text.style.color,

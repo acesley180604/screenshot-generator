@@ -11,12 +11,12 @@ import type {
   ExportConfig,
 } from '@/types';
 
-// Default values
+// Default values - Using modern Inter font
 const defaultTextStyle: TextStyle = {
-  fontFamily: 'SF Pro Display',
+  fontFamily: 'Inter',
   fontSize: 120,
   fontWeight: 700,
-  color: '#000000',
+  color: '#FFFFFF',
   alignment: 'center',
   lineHeight: 1.2,
   letterSpacing: 0,

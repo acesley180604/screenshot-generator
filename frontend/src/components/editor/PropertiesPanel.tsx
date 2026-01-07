@@ -241,6 +241,32 @@ const BACKGROUND_TYPES = [
   { id: "blobs", name: "Blobs" },
 ];
 
+// Modern font families for app screenshots
+const FONT_FAMILIES = [
+  { id: "Inter", name: "Inter", category: "modern", cssVar: "var(--font-inter)", preview: "Aa" },
+  { id: "Poppins", name: "Poppins", category: "modern", cssVar: "var(--font-poppins)", preview: "Aa" },
+  { id: "Plus Jakarta Sans", name: "Plus Jakarta", category: "modern", cssVar: "var(--font-plus-jakarta)", preview: "Aa" },
+  { id: "DM Sans", name: "DM Sans", category: "modern", cssVar: "var(--font-dm-sans)", preview: "Aa" },
+  { id: "Space Grotesk", name: "Space Grotesk", category: "modern", cssVar: "var(--font-space-grotesk)", preview: "Aa" },
+  { id: "Outfit", name: "Outfit", category: "modern", cssVar: "var(--font-outfit)", preview: "Aa" },
+  { id: "Manrope", name: "Manrope", category: "modern", cssVar: "var(--font-manrope)", preview: "Aa" },
+  { id: "Montserrat", name: "Montserrat", category: "classic", cssVar: "var(--font-montserrat)", preview: "Aa" },
+  { id: "Raleway", name: "Raleway", category: "classic", cssVar: "var(--font-raleway)", preview: "Aa" },
+  { id: "Work Sans", name: "Work Sans", category: "classic", cssVar: "var(--font-work-sans)", preview: "Aa" },
+  { id: "SF Pro Display", name: "SF Pro", category: "system", cssVar: "-apple-system, BlinkMacSystemFont, 'SF Pro Display'", preview: "Aa" },
+];
+
+// Font weight options
+const FONT_WEIGHTS = [
+  { value: 300, name: "Light" },
+  { value: 400, name: "Regular" },
+  { value: 500, name: "Medium" },
+  { value: 600, name: "Semibold" },
+  { value: 700, name: "Bold" },
+  { value: 800, name: "Extra Bold" },
+  { value: 900, name: "Black" },
+];
+
 interface SectionProps {
   icon: React.ReactNode;
   title: string;
@@ -700,6 +726,64 @@ export function PropertiesPanel() {
 
                 {selectedTextId === text.id && (
                   <div className="mt-3 pt-3 border-t border-[#2c2c2e] space-y-3 animate-fadeIn">
+                    {/* Font Family Selection */}
+                    <div>
+                      <Label className="text-[11px] font-medium text-[#8e8e93] uppercase tracking-wide">Font Family</Label>
+                      <div className="grid grid-cols-3 gap-1.5 mt-1.5">
+                        {FONT_FAMILIES.slice(0, 6).map((font) => (
+                          <button
+                            key={font.id}
+                            onClick={() =>
+                              updateTextStyle(selectedScreenshot.id, text.id, {
+                                fontFamily: font.id,
+                              })
+                            }
+                            className={cn(
+                              "py-2 px-2 rounded-lg text-[11px] font-medium transition-all duration-200 text-center",
+                              text.style.fontFamily === font.id
+                                ? "bg-[#0a84ff] text-white"
+                                : "bg-[#2c2c2e] text-[#a1a1a6] hover:bg-[#3a3a3c] hover:text-[#f5f5f7]"
+                            )}
+                            style={{ fontFamily: font.cssVar }}
+                          >
+                            {font.name}
+                          </button>
+                        ))}
+                      </div>
+                      <Select
+                        value={text.style.fontFamily}
+                        onValueChange={(value) =>
+                          updateTextStyle(selectedScreenshot.id, text.id, {
+                            fontFamily: value,
+                          })
+                        }
+                      >
+                        <SelectTrigger className="h-8 text-sm mt-2">
+                          <SelectValue placeholder="More fonts..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <div className="px-2 py-1 text-[10px] text-[#8e8e93] uppercase tracking-wide">Modern</div>
+                          {FONT_FAMILIES.filter(f => f.category === "modern").map((font) => (
+                            <SelectItem key={font.id} value={font.id}>
+                              <span style={{ fontFamily: font.cssVar }}>{font.name}</span>
+                            </SelectItem>
+                          ))}
+                          <div className="px-2 py-1 text-[10px] text-[#8e8e93] uppercase tracking-wide mt-1">Classic</div>
+                          {FONT_FAMILIES.filter(f => f.category === "classic").map((font) => (
+                            <SelectItem key={font.id} value={font.id}>
+                              <span style={{ fontFamily: font.cssVar }}>{font.name}</span>
+                            </SelectItem>
+                          ))}
+                          <div className="px-2 py-1 text-[10px] text-[#8e8e93] uppercase tracking-wide mt-1">System</div>
+                          {FONT_FAMILIES.filter(f => f.category === "system").map((font) => (
+                            <SelectItem key={font.id} value={font.id}>
+                              <span style={{ fontFamily: font.cssVar }}>{font.name}</span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <Label className="text-[11px] font-medium text-[#8e8e93] uppercase tracking-wide">Size</Label>
@@ -728,11 +812,11 @@ export function PropertiesPanel() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="400">Regular</SelectItem>
-                            <SelectItem value="500">Medium</SelectItem>
-                            <SelectItem value="600">Semibold</SelectItem>
-                            <SelectItem value="700">Bold</SelectItem>
-                            <SelectItem value="800">Heavy</SelectItem>
+                            {FONT_WEIGHTS.map((weight) => (
+                              <SelectItem key={weight.value} value={weight.value.toString()}>
+                                {weight.name}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>
