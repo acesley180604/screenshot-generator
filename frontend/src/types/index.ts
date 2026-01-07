@@ -175,3 +175,63 @@ export interface DeviceColorOption {
   name: string;
   hex: string;
 }
+
+// Layout device position
+export interface LayoutDevicePosition {
+  position: { x: number; y: number };
+  scale: number;
+  rotation: number;
+  zIndex: number;
+  perspective?: boolean;
+  floatingShadow?: boolean;
+  noFrame?: boolean;
+  roundedCorners?: number;
+  clipLeft?: boolean;
+  clipRight?: boolean;
+  opacity?: number;
+}
+
+// Layout text area
+export interface LayoutTextArea {
+  position: 'top' | 'bottom' | 'left' | 'right' | 'subtitle';
+  x?: number;
+  y: number;
+  width: number;
+  align?: 'left' | 'center' | 'right';
+}
+
+// Layout callout
+export interface LayoutCallout {
+  position: { x: number; y: number };
+  align: 'left' | 'right';
+  text?: string;
+}
+
+// Feature zoom config
+export interface FeatureZoomConfig {
+  position: { x: number; y: number };
+  scale: number;
+  borderRadius: number;
+  showConnector: boolean;
+}
+
+// Layout configuration
+export interface LayoutConfig {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  devices: LayoutDevicePosition[];
+  textAreas: LayoutTextArea[];
+  callouts?: LayoutCallout[];
+  featureZoom?: FeatureZoomConfig;
+  panoramicPosition?: 'left' | 'center' | 'right';
+  divider?: { position: number; style: string };
+}
+
+// Multi-device screenshot config
+export interface MultiDeviceImage {
+  deviceIndex: number;
+  url: string;
+  fit: 'contain' | 'cover' | 'fill';
+}

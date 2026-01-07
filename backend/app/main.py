@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
 
-from .routers import templates, devices, locales, generate, upload
+from .routers import templates, devices, locales, generate, upload, layouts
 
 # Create FastAPI app
 app = FastAPI(
@@ -30,6 +30,7 @@ app.include_router(devices.router, prefix="/api")
 app.include_router(locales.router, prefix="/api")
 app.include_router(generate.router, prefix="/api")
 app.include_router(upload.router, prefix="/api")
+app.include_router(layouts.router, prefix="/api")
 
 # Static files for assets
 assets_path = os.path.join(os.path.dirname(__file__), "assets")
@@ -49,6 +50,7 @@ async def root():
         "version": "1.0.0",
         "endpoints": {
             "templates": "/api/templates",
+            "layouts": "/api/layouts",
             "devices": "/api/devices",
             "locales": "/api/locales",
             "upload": "/api/upload",
