@@ -213,3 +213,18 @@ class LocaleMetadata(BaseModel):
     name: str
     native_name: str
     rtl: bool = False
+
+
+# Background removal models
+class BackgroundRemovalRequest(BaseModel):
+    file_id: str
+    alpha_matting: bool = False
+
+
+class BackgroundRemovalResponse(BaseModel):
+    id: str
+    url: str
+    original_url: str
+    width: int
+    height: int
+    processing_time: float

@@ -1,7 +1,8 @@
 "use client";
 
-import React from "react";
-import { Palette, Type, Smartphone, Plus, Trash2, ChevronDown, Award } from "lucide-react";
+import React, { useState } from "react";
+import { Palette, Type, Smartphone, Plus, Trash2, ChevronDown, Award, Image, Eraser, Loader2 } from "lucide-react";
+import { uploadApi } from "@/lib/api";
 import { useEditorStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -319,7 +320,11 @@ export function PropertiesPanel() {
     updateTextStyle,
     addText,
     removeText,
+    setScreenshotImage,
   } = useEditorStore();
+
+  const [isRemovingBackground, setIsRemovingBackground] = useState(false);
+  const [backgroundRemovalError, setBackgroundRemovalError] = useState<string | null>(null);
 
   const selectedScreenshot = project.screenshots.find(
     (s) => s.id === selectedScreenshotId
@@ -328,6 +333,39 @@ export function PropertiesPanel() {
   const selectedText = selectedScreenshot?.texts.find(
     (t) => t.id === selectedTextId
   );
+
+  // Extract file ID from image URL
+  const getFileIdFromUrl = (url: string): string | null => {
+    // URL format: /api/upload/{file_id}
+    const match = url.match(/\/api\/upload\/([^/]+)/);
+    return match ? match[1] : null;
+  };
+
+  // Handle background removal
+  const handleRemoveBackground = async () => {
+    if (!selectedScreenshot?.image?.url) return;
+
+    const fileId = getFileIdFromUrl(selectedScreenshot.image.url);
+    if (!fileId) {
+      setBackgroundRemovalError("Invalid image URL");
+      return;
+    }
+
+    setIsRemovingBackground(true);
+    setBackgroundRemovalError(null);
+
+    try {
+      const result = await uploadApi.removeBackground(fileId, false);
+      // Update the screenshot with the new image URL
+      setScreenshotImage(selectedScreenshot.id, result.url);
+    } catch (error) {
+      setBackgroundRemovalError(
+        error instanceof Error ? error.message : "Background removal failed"
+      );
+    } finally {
+      setIsRemovingBackground(false);
+    }
+  };
 
   if (!selectedScreenshot) {
     return (
@@ -663,6 +701,54 @@ export function PropertiesPanel() {
           </label>
         </div>
       </Section>
+
+      {/* Image Section - Only show if image is uploaded */}
+      {selectedScreenshot.image?.url && (
+        <Section icon={<Image className="w-3.5 h-3.5" />} title="Image">
+          <div className="space-y-3">
+            {/* Image Preview */}
+            <div className="relative rounded-lg overflow-hidden bg-[#2c2c2e] aspect-video">
+              <img
+                src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}${selectedScreenshot.image.url}`}
+                alt="Screenshot"
+                className="w-full h-full object-contain"
+              />
+            </div>
+
+            {/* Background Removal */}
+            <div className="space-y-2">
+              <Label className="text-[11px] font-medium text-[#8e8e93] uppercase tracking-wide">Background Removal</Label>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full gap-2"
+                onClick={handleRemoveBackground}
+                disabled={isRemovingBackground}
+              >
+                {isRemovingBackground ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Removing Background...
+                  </>
+                ) : (
+                  <>
+                    <Eraser className="w-4 h-4" />
+                    Remove Background
+                  </>
+                )}
+              </Button>
+              <p className="text-[10px] text-[#8e8e93]">
+                AI-powered background removal using U2Net
+              </p>
+              {backgroundRemovalError && (
+                <p className="text-[10px] text-[#ff453a]">
+                  {backgroundRemovalError}
+                </p>
+              )}
+            </div>
+          </div>
+        </Section>
+      )}
 
       {/* Text Section */}
       <Section icon={<Type className="w-3.5 h-3.5" />} title="Text">

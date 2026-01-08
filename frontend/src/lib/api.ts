@@ -78,6 +78,22 @@ export const uploadApi = {
 
   delete: (fileId: string) =>
     fetchApi<{ status: string }>(`/upload/${fileId}`, { method: 'DELETE' }),
+
+  removeBackground: (fileId: string, alphaMatting: boolean = false) =>
+    fetchApi<{
+      id: string;
+      url: string;
+      original_url: string;
+      width: number;
+      height: number;
+      processing_time: number;
+    }>('/upload/remove-background', {
+      method: 'POST',
+      body: JSON.stringify({ file_id: fileId, alpha_matting: alphaMatting }),
+    }),
+
+  getBackgroundRemovalStatus: () =>
+    fetchApi<{ available: boolean; message: string }>('/upload/remove-background/status'),
 };
 
 // Generate API
