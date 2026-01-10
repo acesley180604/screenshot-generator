@@ -107,7 +107,8 @@ export type SocialProofType =
   | 'testimonial'      // User testimonial quote
   | 'press'            // Press/media mentions
   | 'trusted-by'       // "Trusted by X users"
-  | 'feature-cards';   // Feature cards grid (like Headspace)
+  | 'feature-cards'    // Feature cards grid (like Headspace)
+  | 'notification';    // iOS-style floating notification
 
 // Feature card for feature-cards type
 export interface FeatureCard {
@@ -115,6 +116,16 @@ export interface FeatureCard {
   label: string;
   color: string;        // Background color
   iconType?: 'dots' | 'stars' | 'circles' | 'waves' | 'gradient';
+}
+
+// iOS-style notification item
+export interface NotificationItem {
+  id: string;
+  appName: string;
+  appIcon?: string;        // App icon color or image URL
+  title: string;
+  body: string;
+  time?: string;           // e.g., "now", "5m ago"
 }
 
 // Social Proof Element
@@ -150,6 +161,9 @@ export interface SocialProofElement {
 
   // Feature cards
   featureCards?: FeatureCard[];
+
+  // Notification specific
+  notifications?: NotificationItem[];
 
   // Styling
   style: {

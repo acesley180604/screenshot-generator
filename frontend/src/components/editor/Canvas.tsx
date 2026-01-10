@@ -859,6 +859,116 @@ function SocialProofRenderer({ element }: { element: SocialProofElement }) {
         </div>
       );
 
+    case "notification":
+      // iOS-style floating notifications
+      const notificationItems = element.notifications || [];
+      return (
+        <div style={baseStyle}>
+          <div style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "8px",
+            width: "280px",
+          }}>
+            {notificationItems.map((notification, idx) => (
+              <div
+                key={notification.id}
+                style={{
+                  backgroundColor: element.style.backgroundColor || "rgba(255,255,255,0.85)",
+                  backdropFilter: element.style.blur ? `blur(${element.style.blur}px)` : "blur(20px)",
+                  WebkitBackdropFilter: element.style.blur ? `blur(${element.style.blur}px)` : "blur(20px)",
+                  borderRadius: "16px",
+                  padding: "12px",
+                  display: "flex",
+                  gap: "10px",
+                  boxShadow: "0 4px 24px rgba(0,0,0,0.15), 0 1px 2px rgba(0,0,0,0.1)",
+                  transform: idx > 0 ? `scale(${1 - idx * 0.03})` : undefined,
+                  opacity: idx > 0 ? 1 - idx * 0.1 : 1,
+                }}
+              >
+                {/* App Icon */}
+                <div style={{
+                  width: "36px",
+                  height: "36px",
+                  borderRadius: "8px",
+                  backgroundColor: notification.appIcon || element.style.secondaryColor || "#007AFF",
+                  flexShrink: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}>
+                  <span style={{
+                    color: "white",
+                    fontSize: "14px",
+                    fontWeight: 700,
+                  }}>
+                    {notification.appName.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+
+                {/* Content */}
+                <div style={{
+                  flex: 1,
+                  minWidth: 0,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "2px",
+                }}>
+                  {/* Header row with app name and time */}
+                  <div style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}>
+                    <span style={{
+                      color: element.style.color || "rgba(0,0,0,0.5)",
+                      fontSize: "11px",
+                      fontWeight: 500,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.3px",
+                    }}>
+                      {notification.appName}
+                    </span>
+                    {notification.time && (
+                      <span style={{
+                        color: "rgba(0,0,0,0.4)",
+                        fontSize: "10px",
+                      }}>
+                        {notification.time}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Title */}
+                  <span style={{
+                    color: "#000",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    lineHeight: 1.3,
+                  }}>
+                    {notification.title}
+                  </span>
+
+                  {/* Body */}
+                  <span style={{
+                    color: "rgba(0,0,0,0.7)",
+                    fontSize: "12px",
+                    lineHeight: 1.3,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    display: "-webkit-box",
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: "vertical",
+                  }}>
+                    {notification.body}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+
     default:
       return null;
   }

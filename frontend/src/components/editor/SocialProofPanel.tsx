@@ -14,6 +14,7 @@ import {
   Eye,
   EyeOff,
   LayoutGrid,
+  Bell,
 } from "lucide-react";
 import { useEditorStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
@@ -27,7 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import type { SocialProofType, SocialProofElement, FeatureCard } from "@/types";
+import type { SocialProofType, SocialProofElement, FeatureCard, NotificationItem } from "@/types";
 
 // University logo data - popular universities with SVG-friendly icons
 const UNIVERSITY_LOGOS = [
@@ -120,6 +121,12 @@ const SOCIAL_PROOF_TYPES: {
     label: "Feature Cards",
     description: "Grid of feature highlights",
   },
+  {
+    type: "notification",
+    icon: Bell,
+    label: "Notifications",
+    description: "iOS-style floating notifications",
+  },
 ];
 
 // Default social proof element factory
@@ -206,6 +213,36 @@ function createDefaultSocialProof(type: SocialProofType): SocialProofElement {
         style: {
           ...base.style,
           scale: 1,
+        },
+      };
+    case "notification":
+      return {
+        ...base,
+        positionY: 0.5,
+        notifications: [
+          {
+            id: crypto.randomUUID(),
+            appName: "App Name",
+            appIcon: "#007AFF",
+            title: "一条重要通知",
+            body: "这是通知内容，显示在这里。快来检查下我的身体状态",
+            time: "现在",
+          },
+          {
+            id: crypto.randomUUID(),
+            appName: "App Name",
+            appIcon: "#34C759",
+            title: "一条重要通知",
+            body: "这是另一条通知内容。快来检查下我的身体状态",
+            time: "5分钟前",
+          },
+        ],
+        style: {
+          ...base.style,
+          color: "rgba(0,0,0,0.5)",
+          secondaryColor: "#007AFF",
+          backgroundColor: "rgba(255,255,255,0.85)",
+          blur: 20,
         },
       };
     default:
@@ -653,6 +690,102 @@ function SocialProofElementEditor({
             }}
           >
             <Plus className="w-3 h-3 mr-1" /> Add Card
+          </Button>
+        </div>
+      )}
+
+      {element.type === "notification" && (
+        <div className="space-y-3">
+          <Label className="text-[10px] text-[#8e8e93] block">
+            Notifications ({element.notifications?.length || 0})
+          </Label>
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {(element.notifications || []).map((notification, idx) => (
+              <div key={notification.id} className="p-2 bg-[#1c1c1e] rounded-lg space-y-2">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={notification.appIcon || "#007AFF"}
+                    onChange={(e) => {
+                      const updated = [...(element.notifications || [])];
+                      updated[idx] = { ...notification, appIcon: e.target.value };
+                      onUpdate(screenshotId, element.id, { notifications: updated });
+                    }}
+                    className="w-6 h-6 rounded cursor-pointer border-0"
+                    title="App icon color"
+                  />
+                  <Input
+                    value={notification.appName}
+                    onChange={(e) => {
+                      const updated = [...(element.notifications || [])];
+                      updated[idx] = { ...notification, appName: e.target.value };
+                      onUpdate(screenshotId, element.id, { notifications: updated });
+                    }}
+                    className="h-7 text-xs flex-1"
+                    placeholder="App name"
+                  />
+                  <button
+                    onClick={() => {
+                      const updated = (element.notifications || []).filter((_, i) => i !== idx);
+                      onUpdate(screenshotId, element.id, { notifications: updated });
+                    }}
+                    className="p-1 hover:bg-[#ff453a]/20 rounded"
+                  >
+                    <Trash2 className="w-3 h-3 text-[#ff453a]" />
+                  </button>
+                </div>
+                <Input
+                  value={notification.title}
+                  onChange={(e) => {
+                    const updated = [...(element.notifications || [])];
+                    updated[idx] = { ...notification, title: e.target.value };
+                    onUpdate(screenshotId, element.id, { notifications: updated });
+                  }}
+                  className="h-7 text-xs"
+                  placeholder="Notification title"
+                />
+                <Input
+                  value={notification.body}
+                  onChange={(e) => {
+                    const updated = [...(element.notifications || [])];
+                    updated[idx] = { ...notification, body: e.target.value };
+                    onUpdate(screenshotId, element.id, { notifications: updated });
+                  }}
+                  className="h-7 text-xs"
+                  placeholder="Notification body"
+                />
+                <Input
+                  value={notification.time || ""}
+                  onChange={(e) => {
+                    const updated = [...(element.notifications || [])];
+                    updated[idx] = { ...notification, time: e.target.value };
+                    onUpdate(screenshotId, element.id, { notifications: updated });
+                  }}
+                  className="h-7 text-xs"
+                  placeholder="Time (e.g., 现在, 5分钟前)"
+                />
+              </div>
+            ))}
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full h-7 text-[10px]"
+            onClick={() => {
+              const newNotification: NotificationItem = {
+                id: crypto.randomUUID(),
+                appName: "App Name",
+                appIcon: "#" + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0'),
+                title: "新通知",
+                body: "这是通知内容",
+                time: "现在",
+              };
+              onUpdate(screenshotId, element.id, {
+                notifications: [...(element.notifications || []), newNotification],
+              });
+            }}
+          >
+            <Plus className="w-3 h-3 mr-1" /> Add Notification
           </Button>
         </div>
       )}
