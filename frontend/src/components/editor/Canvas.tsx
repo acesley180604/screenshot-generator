@@ -860,111 +860,142 @@ function SocialProofRenderer({ element }: { element: SocialProofElement }) {
       );
 
     case "notification":
-      // iOS-style floating notifications
+      // iOS-style floating notifications with realistic stacking
       const notificationItems = element.notifications || [];
+      const totalNotifications = notificationItems.length;
+
       return (
         <div style={baseStyle}>
           <div style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "8px",
-            width: "280px",
+            position: "relative",
+            width: "300px",
+            // Calculate height based on first notification + stacking offset
+            height: totalNotifications > 0 ? `${88 + (totalNotifications - 1) * 12}px` : "88px",
           }}>
-            {notificationItems.map((notification, idx) => (
-              <div
-                key={notification.id}
-                style={{
-                  backgroundColor: element.style.backgroundColor || "rgba(255,255,255,0.85)",
-                  backdropFilter: element.style.blur ? `blur(${element.style.blur}px)` : "blur(20px)",
-                  WebkitBackdropFilter: element.style.blur ? `blur(${element.style.blur}px)` : "blur(20px)",
-                  borderRadius: "16px",
-                  padding: "12px",
-                  display: "flex",
-                  gap: "10px",
-                  boxShadow: "0 4px 24px rgba(0,0,0,0.15), 0 1px 2px rgba(0,0,0,0.1)",
-                  transform: idx > 0 ? `scale(${1 - idx * 0.03})` : undefined,
-                  opacity: idx > 0 ? 1 - idx * 0.1 : 1,
-                }}
-              >
-                {/* App Icon */}
-                <div style={{
-                  width: "36px",
-                  height: "36px",
-                  borderRadius: "8px",
-                  backgroundColor: notification.appIcon || element.style.secondaryColor || "#007AFF",
-                  flexShrink: 0,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}>
-                  <span style={{
-                    color: "white",
-                    fontSize: "14px",
-                    fontWeight: 700,
-                  }}>
-                    {notification.appName.charAt(0).toUpperCase()}
-                  </span>
-                </div>
+            {/* Render notifications in reverse order so first one is on top */}
+            {[...notificationItems].reverse().map((notification, reverseIdx) => {
+              const idx = totalNotifications - 1 - reverseIdx; // Original index
+              const stackOffset = idx * 12; // Vertical offset for stacking
+              const scaleValue = 1 - (idx * 0.02); // Subtle scale reduction
+              const brightnessValue = 1 - (idx * 0.03); // Subtle darkening for depth
 
-                {/* Content */}
-                <div style={{
-                  flex: 1,
-                  minWidth: 0,
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "2px",
-                }}>
-                  {/* Header row with app name and time */}
+              return (
+                <div
+                  key={notification.id}
+                  style={{
+                    position: "absolute",
+                    top: `${stackOffset}px`,
+                    left: "50%",
+                    width: "100%",
+                    transform: `translateX(-50%) scale(${scaleValue})`,
+                    transformOrigin: "center top",
+                    zIndex: totalNotifications - idx,
+                    filter: idx > 0 ? `brightness(${brightnessValue})` : undefined,
+                  }}
+                >
                   <div style={{
+                    backgroundColor: element.style.backgroundColor || "rgba(245,245,247,0.92)",
+                    backdropFilter: element.style.blur ? `blur(${element.style.blur}px)` : "blur(25px)",
+                    WebkitBackdropFilter: element.style.blur ? `blur(${element.style.blur}px)` : "blur(25px)",
+                    borderRadius: "20px",
+                    padding: "14px 16px",
                     display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
+                    gap: "12px",
+                    boxShadow: idx === 0
+                      ? "0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08), inset 0 0.5px 0 rgba(255,255,255,0.5)"
+                      : "0 4px 16px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.05)",
+                    border: "0.5px solid rgba(255,255,255,0.3)",
                   }}>
-                    <span style={{
-                      color: element.style.color || "rgba(0,0,0,0.5)",
-                      fontSize: "11px",
-                      fontWeight: 500,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.3px",
+                    {/* App Icon */}
+                    <div style={{
+                      width: "40px",
+                      height: "40px",
+                      borderRadius: "10px",
+                      backgroundColor: notification.appIcon || element.style.secondaryColor || "#007AFF",
+                      flexShrink: 0,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
                     }}>
-                      {notification.appName}
-                    </span>
-                    {notification.time && (
                       <span style={{
-                        color: "rgba(0,0,0,0.4)",
-                        fontSize: "10px",
+                        color: "white",
+                        fontSize: "16px",
+                        fontWeight: 700,
+                        fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif",
                       }}>
-                        {notification.time}
+                        {notification.appName.charAt(0).toUpperCase()}
                       </span>
-                    )}
+                    </div>
+
+                    {/* Content */}
+                    <div style={{
+                      flex: 1,
+                      minWidth: 0,
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "1px",
+                    }}>
+                      {/* Header row with app name and time */}
+                      <div style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        marginBottom: "2px",
+                      }}>
+                        <span style={{
+                          color: "rgba(60,60,67,0.6)",
+                          fontSize: "13px",
+                          fontWeight: 500,
+                          fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif",
+                          letterSpacing: "-0.08px",
+                        }}>
+                          {notification.appName}
+                        </span>
+                        {notification.time && (
+                          <span style={{
+                            color: "rgba(60,60,67,0.45)",
+                            fontSize: "12px",
+                            fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif",
+                          }}>
+                            {notification.time}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Title */}
+                      <span style={{
+                        color: "#1c1c1e",
+                        fontSize: "15px",
+                        fontWeight: 600,
+                        lineHeight: 1.25,
+                        fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif",
+                        letterSpacing: "-0.24px",
+                      }}>
+                        {notification.title}
+                      </span>
+
+                      {/* Body */}
+                      <span style={{
+                        color: "rgba(60,60,67,0.85)",
+                        fontSize: "15px",
+                        fontWeight: 400,
+                        lineHeight: 1.3,
+                        fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif",
+                        letterSpacing: "-0.24px",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        display: "-webkit-box",
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: "vertical",
+                      }}>
+                        {notification.body}
+                      </span>
+                    </div>
                   </div>
-
-                  {/* Title */}
-                  <span style={{
-                    color: "#000",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    lineHeight: 1.3,
-                  }}>
-                    {notification.title}
-                  </span>
-
-                  {/* Body */}
-                  <span style={{
-                    color: "rgba(0,0,0,0.7)",
-                    fontSize: "12px",
-                    lineHeight: 1.3,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    display: "-webkit-box",
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: "vertical",
-                  }}>
-                    {notification.body}
-                  </span>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       );
