@@ -716,20 +716,162 @@ function SocialProofRenderer({ element }: { element: SocialProofElement }) {
       );
 
     case "testimonial":
+      // Real app-style testimonial card with avatar and stars
+      const testimonialStyle = element.testimonialStyle || "card";
+      const testimonialRating = element.testimonialRating ?? 5;
+      const avatarConfig = element.testimonialAvatar || {
+        id: "default",
+        initials: element.testimonialAuthor?.split(" ").map(n => n[0]).join("").slice(0, 2) || "JD",
+        color: "#6366f1"
+      };
+
+      if (testimonialStyle === "bubble") {
+        // Speech bubble style
+        return (
+          <div style={baseStyle}>
+            <div style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: "8px",
+            }}>
+              {/* Speech bubble */}
+              <div style={{
+                backgroundColor: element.style.backgroundColor || "rgba(255,255,255,0.95)",
+                borderRadius: "16px",
+                padding: "12px 16px",
+                maxWidth: "180px",
+                position: "relative",
+                boxShadow: "0 4px 20px rgba(0,0,0,0.12)",
+              }}>
+                <p style={{
+                  color: element.style.color || "#1a1a2e",
+                  fontSize: "11px",
+                  fontWeight: 500,
+                  lineHeight: 1.4,
+                  textAlign: "center",
+                  margin: 0,
+                }}>
+                  "{element.testimonialText || "This app changed my life!"}"
+                </p>
+                {/* Bubble tail */}
+                <div style={{
+                  position: "absolute",
+                  bottom: "-8px",
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  width: 0,
+                  height: 0,
+                  borderLeft: "8px solid transparent",
+                  borderRight: "8px solid transparent",
+                  borderTop: `8px solid ${element.style.backgroundColor || "rgba(255,255,255,0.95)"}`,
+                }} />
+              </div>
+              {/* Avatar and name */}
+              <div style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: "4px",
+              }}>
+                <div style={{
+                  width: "32px",
+                  height: "32px",
+                  borderRadius: "50%",
+                  overflow: "hidden",
+                  backgroundColor: avatarConfig.color || "#6366f1",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  border: "2px solid white",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+                }}>
+                  {avatarConfig.imageUrl ? (
+                    <img src={avatarConfig.imageUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  ) : (
+                    <span style={{ fontSize: "11px", fontWeight: 700, color: "#fff" }}>{avatarConfig.initials}</span>
+                  )}
+                </div>
+                <span style={{ color: element.style.color || "#fff", fontSize: "10px", fontWeight: 600 }}>
+                  {element.testimonialAuthor || "Happy User"}
+                </span>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // Card style (default) - like real app reviews
       return (
         <div style={baseStyle}>
-          <div style={{ ...containerStyle, flexDirection: "column", gap: "4px", padding: "10px 14px", maxWidth: "200px" }}>
-            <div style={{ display: "flex", alignItems: "flex-start", gap: "4px" }}>
-              <span style={{ color: element.style.secondaryColor, fontSize: "16px", lineHeight: 1 }}>"</span>
-              <span style={{ color: element.style.color, fontSize: "10px", fontStyle: "italic", lineHeight: 1.3 }}>
-                {element.testimonialText || "Amazing app!"}
-              </span>
+          <div style={{
+            backgroundColor: element.style.backgroundColor || "rgba(255,255,255,0.95)",
+            borderRadius: "16px",
+            padding: "14px",
+            maxWidth: "200px",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.12)",
+          }}>
+            {/* Header with avatar and name */}
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              marginBottom: "10px",
+            }}>
+              {/* Avatar */}
+              <div style={{
+                width: "36px",
+                height: "36px",
+                borderRadius: "50%",
+                overflow: "hidden",
+                backgroundColor: avatarConfig.color || "#6366f1",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}>
+                {avatarConfig.imageUrl ? (
+                  <img src={avatarConfig.imageUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                ) : (
+                  <span style={{ fontSize: "12px", fontWeight: 700, color: "#fff" }}>{avatarConfig.initials}</span>
+                )}
+              </div>
+              {/* Name and stars */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                <span style={{
+                  color: element.style.color || "#1a1a2e",
+                  fontSize: "11px",
+                  fontWeight: 600,
+                }}>
+                  {element.testimonialAuthor || "Happy User"}
+                </span>
+                {/* Star rating */}
+                <div style={{ display: "flex", gap: "1px" }}>
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <svg
+                      key={star}
+                      width="10"
+                      height="10"
+                      viewBox="0 0 20 20"
+                      fill={star <= testimonialRating ? element.style.secondaryColor || "#FFD700" : "#e0e0e0"}
+                    >
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                    </svg>
+                  ))}
+                </div>
+              </div>
             </div>
-            {element.testimonialAuthor && (
-              <span style={{ color: "rgba(255,255,255,0.6)", fontSize: "8px", alignSelf: "flex-end" }}>
-                — {element.testimonialAuthor}
-              </span>
-            )}
+            {/* Quote */}
+            <p style={{
+              color: element.style.color || "#1a1a2e",
+              fontSize: "11px",
+              fontWeight: 400,
+              lineHeight: 1.5,
+              margin: 0,
+              opacity: 0.85,
+            }}>
+              "{element.testimonialText || "This app changed my life!"}"
+            </p>
           </div>
         </div>
       );
@@ -772,15 +914,138 @@ function SocialProofRenderer({ element }: { element: SocialProofElement }) {
       );
 
     case "trusted-by":
+      // Real app-style social proof with overlapping avatar stack (facepile)
+      const defaultAvatars: { initials: string; color: string; imageUrl?: string }[] = [
+        { initials: "JD", color: "#FF6B6B" },
+        { initials: "AS", color: "#4ECDC4" },
+        { initials: "MK", color: "#45B7D1" },
+        { initials: "RL", color: "#96CEB4" },
+        { initials: "TC", color: "#FFEAA7" },
+      ];
+      const avatarsToShow = element.avatars?.length ? element.avatars : defaultAvatars.map((a, i) => ({
+        id: `default-${i}`,
+        initials: a.initials,
+        color: a.color,
+        imageUrl: a.imageUrl,
+      }));
+      const avatarSize = 28;
+      const avatarOverlap = 8;
+      const borderWidth = 2;
+      const borderColor = element.style.borderColor || "#ffffff";
+      const overflowCount = element.avatarOverflow ?? 99;
+
       return (
         <div style={baseStyle}>
-          <div style={containerStyle}>
-            <svg className="w-3 h-3" fill={element.style.secondaryColor} viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-            </svg>
-            <span style={{ color: element.style.color, fontSize: "11px", fontWeight: 600 }}>
-              Trusted by {element.downloadCount || "2M+"} users
-            </span>
+          <div style={{
+            ...containerStyle,
+            flexDirection: "column",
+            gap: "8px",
+            padding: "12px 16px",
+            backgroundColor: element.style.backgroundColor || "rgba(255,255,255,0.95)",
+            borderRadius: "16px",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+          }}>
+            {/* Avatar Stack (Facepile) */}
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}>
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                paddingLeft: `${avatarOverlap}px`,
+              }}>
+                {avatarsToShow.slice(0, 5).map((avatar, index) => (
+                  <div
+                    key={avatar.id}
+                    style={{
+                      width: `${avatarSize}px`,
+                      height: `${avatarSize}px`,
+                      borderRadius: "50%",
+                      border: `${borderWidth}px solid ${borderColor}`,
+                      marginLeft: index === 0 ? 0 : `-${avatarOverlap}px`,
+                      zIndex: 10 - index,
+                      overflow: "hidden",
+                      backgroundColor: avatar.color || "#6366f1",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                    }}
+                  >
+                    {avatar.imageUrl ? (
+                      <img
+                        src={avatar.imageUrl}
+                        alt=""
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "cover",
+                        }}
+                      />
+                    ) : (
+                      <span style={{
+                        fontSize: "10px",
+                        fontWeight: 700,
+                        color: "#ffffff",
+                        textTransform: "uppercase",
+                      }}>
+                        {avatar.initials || "?"}
+                      </span>
+                    )}
+                  </div>
+                ))}
+                {/* Overflow count badge */}
+                {overflowCount > 0 && (
+                  <div
+                    style={{
+                      width: `${avatarSize}px`,
+                      height: `${avatarSize}px`,
+                      borderRadius: "50%",
+                      border: `${borderWidth}px solid ${borderColor}`,
+                      marginLeft: `-${avatarOverlap}px`,
+                      zIndex: 5,
+                      backgroundColor: "#1a1a2e",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                    }}
+                  >
+                    <span style={{
+                      fontSize: "9px",
+                      fontWeight: 700,
+                      color: "#ffffff",
+                    }}>
+                      +{overflowCount > 999 ? "999" : overflowCount}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+            {/* Text */}
+            <div style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: "2px",
+            }}>
+              <span style={{
+                color: element.style.color || "#1a1a2e",
+                fontSize: "13px",
+                fontWeight: 700,
+              }}>
+                {element.downloadCount || "2M+"} users
+              </span>
+              <span style={{
+                color: "rgba(0,0,0,0.5)",
+                fontSize: "10px",
+                fontWeight: 500,
+              }}>
+                Trust this app
+              </span>
+            </div>
           </div>
         </div>
       );

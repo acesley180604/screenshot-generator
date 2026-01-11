@@ -27,7 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import type { SocialProofType, SocialProofElement, FeatureCard } from "@/types";
+import type { SocialProofType, SocialProofElement, FeatureCard, AvatarConfig } from "@/types";
 
 // University logo data - popular universities with SVG-friendly icons
 const UNIVERSITY_LOGOS = [
@@ -171,9 +171,21 @@ function createDefaultSocialProof(type: SocialProofType): SocialProofElement {
     case "testimonial":
       return {
         ...base,
-        testimonialText: "This app changed my life!",
-        testimonialAuthor: "Happy User",
+        testimonialText: "This app changed my life! Absolutely love it.",
+        testimonialAuthor: "Sarah Johnson",
+        testimonialRating: 5,
+        testimonialStyle: "card",
+        testimonialAvatar: {
+          id: crypto.randomUUID(),
+          initials: "SJ",
+          color: "#6366f1",
+        },
         positionY: 0.85,
+        style: {
+          ...base.style,
+          color: "#1a1a2e",
+          backgroundColor: "rgba(255,255,255,0.95)",
+        },
       };
     case "press":
       return {
@@ -189,7 +201,22 @@ function createDefaultSocialProof(type: SocialProofType): SocialProofElement {
     case "trusted-by":
       return {
         ...base,
-        downloadCount: "2M+ users",
+        downloadCount: "2M+",
+        avatars: [
+          { id: crypto.randomUUID(), initials: "JD", color: "#FF6B6B" },
+          { id: crypto.randomUUID(), initials: "AS", color: "#4ECDC4" },
+          { id: crypto.randomUUID(), initials: "MK", color: "#45B7D1" },
+          { id: crypto.randomUUID(), initials: "RL", color: "#96CEB4" },
+          { id: crypto.randomUUID(), initials: "TC", color: "#FFEAA7" },
+        ],
+        avatarOverflow: 99,
+        avatarStyle: "stack",
+        style: {
+          ...base.style,
+          color: "#1a1a2e",
+          backgroundColor: "rgba(255,255,255,0.95)",
+          borderColor: "#ffffff",
+        },
       };
     case "feature-cards":
       return {
@@ -518,6 +545,26 @@ function SocialProofElementEditor({
 
       {element.type === "testimonial" && (
         <div className="space-y-2">
+          {/* Style selector */}
+          <div>
+            <Label className="text-[10px] text-[#8e8e93]">Style</Label>
+            <Select
+              value={element.testimonialStyle || "card"}
+              onValueChange={(value) =>
+                onUpdate(screenshotId, element.id, {
+                  testimonialStyle: value as "card" | "quote" | "bubble",
+                })
+              }
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="card">Card with Avatar</SelectItem>
+                <SelectItem value="bubble">Speech Bubble</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <div>
             <Label className="text-[10px] text-[#8e8e93]">Quote</Label>
             <Input
@@ -531,16 +578,87 @@ function SocialProofElementEditor({
               className="h-8 text-xs"
             />
           </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <Label className="text-[10px] text-[#8e8e93]">Author</Label>
+              <Input
+                value={element.testimonialAuthor || ""}
+                onChange={(e) => {
+                  const name = e.target.value;
+                  const initials = name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
+                  onUpdate(screenshotId, element.id, {
+                    testimonialAuthor: name,
+                    testimonialAvatar: {
+                      ...(element.testimonialAvatar || { id: crypto.randomUUID() }),
+                      initials: initials || "?",
+                    },
+                  });
+                }}
+                placeholder="Sarah Johnson"
+                className="h-8 text-xs"
+              />
+            </div>
+            <div>
+              <Label className="text-[10px] text-[#8e8e93]">Rating</Label>
+              <Select
+                value={String(element.testimonialRating ?? 5)}
+                onValueChange={(value) =>
+                  onUpdate(screenshotId, element.id, {
+                    testimonialRating: parseInt(value),
+                  })
+                }
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[5, 4, 3, 2, 1].map((r) => (
+                    <SelectItem key={r} value={String(r)}>
+                      {"★".repeat(r)}{"☆".repeat(5-r)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          {/* Avatar color */}
           <div>
-            <Label className="text-[10px] text-[#8e8e93]">Author</Label>
+            <Label className="text-[10px] text-[#8e8e93]">Avatar Color</Label>
+            <div className="flex gap-2 mt-1">
+              {["#6366f1", "#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEAA7", "#DDA0DD", "#F4A460"].map((color) => (
+                <button
+                  key={color}
+                  onClick={() =>
+                    onUpdate(screenshotId, element.id, {
+                      testimonialAvatar: {
+                        ...(element.testimonialAvatar || { id: crypto.randomUUID(), initials: "JD" }),
+                        color,
+                      },
+                    })
+                  }
+                  className={cn(
+                    "w-6 h-6 rounded-full border-2 transition-all",
+                    element.testimonialAvatar?.color === color ? "border-white scale-110" : "border-transparent"
+                  )}
+                  style={{ backgroundColor: color }}
+                />
+              ))}
+            </div>
+          </div>
+          {/* Avatar image URL */}
+          <div>
+            <Label className="text-[10px] text-[#8e8e93]">Avatar Image URL (optional)</Label>
             <Input
-              value={element.testimonialAuthor || ""}
+              value={element.testimonialAvatar?.imageUrl || ""}
               onChange={(e) =>
                 onUpdate(screenshotId, element.id, {
-                  testimonialAuthor: e.target.value,
+                  testimonialAvatar: {
+                    ...(element.testimonialAvatar || { id: crypto.randomUUID(), initials: "JD", color: "#6366f1" }),
+                    imageUrl: e.target.value || undefined,
+                  },
                 })
               }
-              placeholder="Happy User"
+              placeholder="https://example.com/photo.jpg"
               className="h-8 text-xs"
             />
           </div>
@@ -581,18 +699,108 @@ function SocialProofElementEditor({
       )}
 
       {element.type === "trusted-by" && (
-        <div>
-          <Label className="text-[10px] text-[#8e8e93]">User Count</Label>
-          <Input
-            value={element.downloadCount || ""}
-            onChange={(e) =>
-              onUpdate(screenshotId, element.id, {
-                downloadCount: e.target.value,
-              })
-            }
-            placeholder="2M+ users trust us"
-            className="h-8 text-xs"
-          />
+        <div className="space-y-3">
+          <div>
+            <Label className="text-[10px] text-[#8e8e93]">User Count</Label>
+            <Input
+              value={element.downloadCount || ""}
+              onChange={(e) =>
+                onUpdate(screenshotId, element.id, {
+                  downloadCount: e.target.value,
+                })
+              }
+              placeholder="2M+"
+              className="h-8 text-xs"
+            />
+          </div>
+          <div>
+            <Label className="text-[10px] text-[#8e8e93]">Overflow Count (+N)</Label>
+            <Input
+              type="number"
+              min="0"
+              max="999"
+              value={element.avatarOverflow ?? 99}
+              onChange={(e) =>
+                onUpdate(screenshotId, element.id, {
+                  avatarOverflow: parseInt(e.target.value) || 0,
+                })
+              }
+              placeholder="99"
+              className="h-8 text-xs"
+            />
+          </div>
+          {/* Avatar management */}
+          <div>
+            <Label className="text-[10px] text-[#8e8e93] mb-2 block">
+              Avatars ({element.avatars?.length || 0}/5)
+            </Label>
+            <div className="space-y-2">
+              {(element.avatars || []).slice(0, 5).map((avatar, idx) => (
+                <div key={avatar.id} className="flex items-center gap-2 p-2 bg-[#1c1c1e] rounded-lg">
+                  <input
+                    type="color"
+                    value={avatar.color || "#6366f1"}
+                    onChange={(e) => {
+                      const updated = [...(element.avatars || [])];
+                      updated[idx] = { ...avatar, color: e.target.value };
+                      onUpdate(screenshotId, element.id, { avatars: updated });
+                    }}
+                    className="w-6 h-6 rounded-full cursor-pointer border-0"
+                  />
+                  <Input
+                    value={avatar.initials || ""}
+                    onChange={(e) => {
+                      const updated = [...(element.avatars || [])];
+                      updated[idx] = { ...avatar, initials: e.target.value.slice(0, 2).toUpperCase() };
+                      onUpdate(screenshotId, element.id, { avatars: updated });
+                    }}
+                    className="h-7 text-xs w-12"
+                    placeholder="JD"
+                    maxLength={2}
+                  />
+                  <Input
+                    value={avatar.imageUrl || ""}
+                    onChange={(e) => {
+                      const updated = [...(element.avatars || [])];
+                      updated[idx] = { ...avatar, imageUrl: e.target.value || undefined };
+                      onUpdate(screenshotId, element.id, { avatars: updated });
+                    }}
+                    className="h-7 text-xs flex-1"
+                    placeholder="Image URL (optional)"
+                  />
+                  <button
+                    onClick={() => {
+                      const updated = (element.avatars || []).filter((_, i) => i !== idx);
+                      onUpdate(screenshotId, element.id, { avatars: updated });
+                    }}
+                    className="p-1 hover:bg-[#ff453a]/20 rounded"
+                  >
+                    <Trash2 className="w-3 h-3 text-[#ff453a]" />
+                  </button>
+                </div>
+              ))}
+            </div>
+            {(element.avatars?.length || 0) < 5 && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full h-7 text-[10px] mt-2"
+                onClick={() => {
+                  const colors = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEAA7", "#DDA0DD"];
+                  const newAvatar: AvatarConfig = {
+                    id: crypto.randomUUID(),
+                    initials: "??",
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                  };
+                  onUpdate(screenshotId, element.id, {
+                    avatars: [...(element.avatars || []), newAvatar],
+                  });
+                }}
+              >
+                <Plus className="w-3 h-3 mr-1" /> Add Avatar
+              </Button>
+            )}
+          </div>
         </div>
       )}
 

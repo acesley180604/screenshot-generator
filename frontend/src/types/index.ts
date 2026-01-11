@@ -117,6 +117,14 @@ export interface FeatureCard {
   iconType?: 'dots' | 'stars' | 'circles' | 'waves' | 'gradient';
 }
 
+// Avatar for facepile/avatar stack
+export interface AvatarConfig {
+  id: string;
+  imageUrl?: string;        // User photo URL
+  initials?: string;        // Fallback initials (e.g., "JD")
+  color?: string;           // Background color for initials
+}
+
 // Social Proof Element
 export interface SocialProofElement {
   id: string;
@@ -129,9 +137,11 @@ export interface SocialProofElement {
   rating?: number;           // 4.8
   ratingCount?: string;      // "125K ratings"
   showStars?: boolean;
+  ratingStyle?: 'badge' | 'appstore' | 'minimal';  // Visual style
 
   // Downloads specific
   downloadCount?: string;    // "10M+"
+  downloadStyle?: 'banner' | 'badge' | 'minimal';  // Visual style
 
   // Award specific
   awardType?: 'apple-design' | 'webby' | 'editors-choice' | 'app-of-the-day' | 'best-of-year' | 'custom';
@@ -144,9 +154,17 @@ export interface SocialProofElement {
   // Testimonial
   testimonialText?: string;
   testimonialAuthor?: string;
+  testimonialAvatar?: AvatarConfig;  // User photo for testimonial
+  testimonialRating?: number;        // Star rating (1-5)
+  testimonialStyle?: 'card' | 'quote' | 'bubble';  // Visual style
 
   // Press mentions
   pressLogos?: string[];     // Media outlet identifiers
+
+  // Trusted-by / Avatar stack
+  avatars?: AvatarConfig[];  // User avatars for facepile
+  avatarOverflow?: number;   // "+99" overflow count
+  avatarStyle?: 'stack' | 'row' | 'grid';  // Layout style
 
   // Feature cards
   featureCards?: FeatureCard[];
@@ -159,6 +177,7 @@ export interface SocialProofElement {
     secondaryColor: string;  // Secondary color (stars, accents)
     backgroundColor?: string;
     blur?: number;           // Glassmorphism effect
+    borderColor?: string;    // Border color for avatars
   };
 }
 
