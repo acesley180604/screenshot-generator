@@ -10,6 +10,7 @@ import type {
   BackgroundConfig,
   ExportConfig,
   SocialProofElement,
+  NotificationElement,
 } from '@/types';
 
 // Default values - Using modern Inter font
@@ -150,6 +151,12 @@ interface EditorState {
   removeSocialProof: (screenshotId: string, elementId: string) => void;
   toggleSocialProof: (screenshotId: string, elementId: string) => void;
   applySocialProofToAll: (element: SocialProofElement) => void;
+
+  // Notification actions
+  addNotification: (screenshotId: string, notification: NotificationElement) => void;
+  updateNotification: (screenshotId: string, notificationId: string, updates: Partial<NotificationElement>) => void;
+  removeNotification: (screenshotId: string, notificationId: string) => void;
+  toggleNotification: (screenshotId: string, notificationId: string) => void;
 
   // Helpers
   getSelectedScreenshot: () => ScreenshotConfig | undefined;
@@ -576,6 +583,61 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           };
         }
       }),
+    },
+  })),
+
+  // Notification actions
+  addNotification: (screenshotId, notification) => set((state) => ({
+    project: {
+      ...state.project,
+      screenshots: state.project.screenshots.map((s) =>
+        s.id === screenshotId
+          ? { ...s, notifications: [...(s.notifications || []), notification] }
+          : s
+      ),
+    },
+  })),
+
+  updateNotification: (screenshotId, notificationId, updates) => set((state) => ({
+    project: {
+      ...state.project,
+      screenshots: state.project.screenshots.map((s) =>
+        s.id === screenshotId
+          ? {
+              ...s,
+              notifications: (s.notifications || []).map((n) =>
+                n.id === notificationId ? { ...n, ...updates } : n
+              ),
+            }
+          : s
+      ),
+    },
+  })),
+
+  removeNotification: (screenshotId, notificationId) => set((state) => ({
+    project: {
+      ...state.project,
+      screenshots: state.project.screenshots.map((s) =>
+        s.id === screenshotId
+          ? { ...s, notifications: (s.notifications || []).filter((n) => n.id !== notificationId) }
+          : s
+      ),
+    },
+  })),
+
+  toggleNotification: (screenshotId, notificationId) => set((state) => ({
+    project: {
+      ...state.project,
+      screenshots: state.project.screenshots.map((s) =>
+        s.id === screenshotId
+          ? {
+              ...s,
+              notifications: (s.notifications || []).map((n) =>
+                n.id === notificationId ? { ...n, enabled: !n.enabled } : n
+              ),
+            }
+          : s
+      ),
     },
   })),
 

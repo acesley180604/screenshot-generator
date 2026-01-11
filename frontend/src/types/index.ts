@@ -98,6 +98,34 @@ export interface LocalizedText {
   positionY: number;
 }
 
+// iOS Notification Types
+export type NotificationType = 'banner' | 'lockscreen' | 'stack';
+
+export interface NotificationElement {
+  id: string;
+  type: NotificationType;
+  enabled: boolean;
+  positionX: number;
+  positionY: number;
+  width: number;
+  height: number;
+
+  // Content
+  appName: string;
+  appIcon?: string;       // URL or emoji
+  title: string;
+  message: string;
+  time?: string;          // "now", "2m ago", "9:41 AM"
+
+  // Styling
+  style: {
+    scale: number;
+    opacity: number;
+    blur?: number;        // Backdrop blur
+    dark?: boolean;       // Dark mode
+  };
+}
+
 // Social Proof Types
 export type SocialProofType =
   | 'rating'           // App Store rating with stars
@@ -221,6 +249,7 @@ export interface ScreenshotConfig {
   image?: ImageConfig;
   texts: LocalizedText[];
   socialProof?: SocialProofElement[];
+  notifications?: NotificationElement[];
 }
 
 // Project

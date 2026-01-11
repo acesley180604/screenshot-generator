@@ -2,11 +2,29 @@
 
 import React, { useCallback, useState, useRef, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
-import { Smartphone, Plus, ImageIcon, Layers, Move } from "lucide-react";
+import { Smartphone, Plus, ImageIcon, Layers, Move, Maximize2 } from "lucide-react";
+import { Rnd } from "react-rnd";
 import { useEditorStore } from "@/lib/store";
 import { uploadApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import type { LayoutDevicePosition, SocialProofElement } from "@/types";
+import type { LayoutDevicePosition, SocialProofElement, NotificationElement } from "@/types";
+
+// Custom resize handle styles
+const resizeHandleStyle = {
+  width: "10px",
+  height: "10px",
+  background: "#0a84ff",
+  borderRadius: "50%",
+  border: "2px solid white",
+  boxShadow: "0 2px 4px rgba(0,0,0,0.3)",
+};
+
+const resizeHandleClasses = {
+  topLeft: { top: -5, left: -5, cursor: "nw-resize" },
+  topRight: { top: -5, right: -5, cursor: "ne-resize" },
+  bottomLeft: { bottom: -5, left: -5, cursor: "sw-resize" },
+  bottomRight: { bottom: -5, right: -5, cursor: "se-resize" },
+};
 
 // Font family mapping for CSS variables
 const FONT_FAMILY_MAP: Record<string, string> = {
@@ -268,7 +286,7 @@ function DeviceFrame({
         <div
           className={cn(
             "relative overflow-hidden transition-all duration-300 group",
-            position.noFrame ? "" : "rounded-[28px]",
+            position.noFrame ? "" : "",
             isSelected && "ring-2 ring-[#0a84ff] ring-offset-2 ring-offset-[#0a0a0a]",
             onPositionChange && "cursor-grab",
             isDragging && "cursor-grabbing"
@@ -276,12 +294,22 @@ function DeviceFrame({
           style={{
             width: `${deviceWidth}px`,
             height: `${deviceHeight}px`,
-            borderRadius: position.roundedCorners ? `${position.roundedCorners}px` : undefined,
+            // iPhone 15 Pro uses superellipse corners - approximately 22% of width
+            borderRadius: position.noFrame
+              ? (position.roundedCorners ? `${position.roundedCorners}px` : "0")
+              : `${deviceWidth * 0.165}px`, // ~53px for standard size, matches iOS superellipse
             backgroundColor: position.noFrame ? "transparent" : bezelColor,
+            // Realistic layered shadows matching real device photography
             boxShadow: shadow && !position.noFrame
               ? position.floatingShadow
                 ? `0 50px 100px -20px rgba(0,0,0,${shadowOpacity * 0.8}), 0 30px 60px -30px rgba(0,0,0,${shadowOpacity})`
-                : `0 ${shadowBlur / 3}px ${shadowBlur}px rgba(0,0,0,${shadowOpacity * 0.6})`
+                : [
+                    `inset 0 0 0 1px rgba(255,255,255,0.08)`, // Inner edge highlight
+                    `0 1px 2px rgba(0,0,0,0.1)`, // Tight shadow
+                    `0 4px 8px rgba(0,0,0,0.15)`, // Close shadow
+                    `0 ${shadowBlur / 2}px ${shadowBlur}px rgba(0,0,0,${shadowOpacity * 0.35})`, // Medium shadow
+                    `0 ${shadowBlur}px ${shadowBlur * 2}px rgba(0,0,0,${shadowOpacity * 0.25})`, // Far shadow
+                  ].join(", ")
               : "none",
           }}
           onMouseDown={handleMouseDown}
@@ -293,25 +321,93 @@ function DeviceFrame({
               <span>Drag to move</span>
             </div>
           )}
-          {/* Device bezel (if not full bleed) */}
+
+          {/* Side buttons - Accurate iPhone 15 Pro positions */}
+          {!position.noFrame && deviceStyle === "realistic" && (
+            <>
+              {/* Action Button (formerly Mute switch) - 14% from top */}
+              <div
+                className="absolute pointer-events-none"
+                style={{
+                  left: "-3px",
+                  top: "14%",
+                  width: "3px",
+                  height: `${deviceHeight * 0.028}px`, // ~20px
+                  backgroundColor: bezelColor,
+                  borderRadius: "2px 0 0 2px",
+                  boxShadow: `inset 1px 0 1px rgba(255,255,255,0.15), -1px 0 3px rgba(0,0,0,0.4)`,
+                }}
+              />
+              {/* Volume Up - 20% from top */}
+              <div
+                className="absolute pointer-events-none"
+                style={{
+                  left: "-3px",
+                  top: "20%",
+                  width: "3px",
+                  height: `${deviceHeight * 0.055}px`, // ~40px
+                  backgroundColor: bezelColor,
+                  borderRadius: "2px 0 0 2px",
+                  boxShadow: `inset 1px 0 1px rgba(255,255,255,0.15), -1px 0 3px rgba(0,0,0,0.4)`,
+                }}
+              />
+              {/* Volume Down - 29% from top */}
+              <div
+                className="absolute pointer-events-none"
+                style={{
+                  left: "-3px",
+                  top: "29%",
+                  width: "3px",
+                  height: `${deviceHeight * 0.055}px`, // ~40px
+                  backgroundColor: bezelColor,
+                  borderRadius: "2px 0 0 2px",
+                  boxShadow: `inset 1px 0 1px rgba(255,255,255,0.15), -1px 0 3px rgba(0,0,0,0.4)`,
+                }}
+              />
+              {/* Power/Side button - Right side, 22% from top */}
+              <div
+                className="absolute pointer-events-none"
+                style={{
+                  right: "-3px",
+                  top: "22%",
+                  width: "3px",
+                  height: `${deviceHeight * 0.082}px`, // ~60px
+                  backgroundColor: bezelColor,
+                  borderRadius: "0 2px 2px 0",
+                  boxShadow: `inset -1px 0 1px rgba(255,255,255,0.15), 1px 0 3px rgba(0,0,0,0.4)`,
+                }}
+              />
+            </>
+          )}
+
+          {/* Titanium bezel frame - 1.55mm bezel width (scaled) */}
           {!position.noFrame && deviceStyle !== "none" && (
             <div
-              className="absolute inset-0 rounded-[28px] pointer-events-none z-10"
+              className="absolute inset-0 pointer-events-none z-10"
               style={{
-                border: deviceStyle === "clay" ? `6px solid ${bezelColor}` : `4px solid ${bezelColor}`,
-                opacity: deviceStyle === "clay" ? 0.9 : 1,
+                borderRadius: `${deviceWidth * 0.165}px`,
+                border: deviceStyle === "clay"
+                  ? `${deviceWidth * 0.022}px solid ${bezelColor}` // ~7px
+                  : `${deviceWidth * 0.018}px solid ${bezelColor}`, // ~6px - accurate 1.55mm bezel
+                background: deviceStyle === "realistic"
+                  ? `linear-gradient(145deg, rgba(255,255,255,0.12) 0%, transparent 40%, rgba(0,0,0,0.08) 100%)`
+                  : "transparent",
               }}
             />
           )}
 
-          {/* Screen content */}
+          {/* Screen content - inset matches bezel width */}
           <div
             className={cn(
               "absolute overflow-hidden bg-black",
-              position.noFrame ? "inset-0" : "inset-[6px] rounded-[22px]"
+              position.noFrame ? "inset-0" : ""
             )}
-            style={{
-              borderRadius: position.roundedCorners ? `${position.roundedCorners - 6}px` : undefined,
+            style={position.noFrame ? {} : {
+              top: `${deviceWidth * 0.018}px`,
+              left: `${deviceWidth * 0.018}px`,
+              right: `${deviceWidth * 0.018}px`,
+              bottom: `${deviceWidth * 0.018}px`,
+              borderRadius: `${deviceWidth * 0.147}px`, // Inner radius = outer - bezel
             }}
           >
             <img
@@ -321,9 +417,45 @@ function DeviceFrame({
             />
           </div>
 
-          {/* Dynamic Island (only for framed devices) */}
+          {/* Dynamic Island - iPhone 14/15 Pro: 126×37pt (@3x = 378×111px), ~32% of screen width */}
           {!position.noFrame && deviceStyle !== "none" && (
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 w-[90px] h-[28px] bg-black rounded-full z-20 shadow-inner" />
+            <div
+              className="absolute left-1/2 -translate-x-1/2 bg-black z-20"
+              style={{
+                top: `${deviceWidth * 0.035}px`, // ~12px from top
+                width: `${deviceWidth * 0.32}px`, // 32% of device width (~126pt scaled)
+                height: `${deviceWidth * 0.095}px`, // ~37pt scaled
+                borderRadius: `${deviceWidth * 0.0475}px`, // Fully rounded (50% of height)
+                boxShadow: "0 0 0 1px rgba(0,0,0,0.8), inset 0 0 2px rgba(0,0,0,0.5)",
+              }}
+            >
+              {/* Front camera - right side of Dynamic Island */}
+              <div
+                className="absolute top-1/2 -translate-y-1/2"
+                style={{
+                  right: `${deviceWidth * 0.025}px`,
+                  width: `${deviceWidth * 0.032}px`,
+                  height: `${deviceWidth * 0.032}px`,
+                  borderRadius: "50%",
+                  background: "radial-gradient(circle at 35% 35%, #2a2a2e 0%, #0a0a0a 50%, #000 100%)",
+                  boxShadow: "inset 0 0 1px rgba(255,255,255,0.1), 0 0 2px rgba(0,0,0,0.5)",
+                }}
+              />
+            </div>
+          )}
+
+          {/* Home Indicator - standard iOS: 134×5pt, centered at bottom */}
+          {!position.noFrame && deviceStyle !== "none" && (
+            <div
+              className="absolute left-1/2 -translate-x-1/2 z-20"
+              style={{
+                bottom: `${deviceWidth * 0.022}px`, // ~8px from bottom
+                width: `${deviceWidth * 0.38}px`, // ~134pt scaled
+                height: `${deviceWidth * 0.015}px`, // ~5pt
+                backgroundColor: "rgba(255,255,255,0.25)",
+                borderRadius: `${deviceWidth * 0.0075}px`,
+              }}
+            />
           )}
         </div>
       ) : (
@@ -575,9 +707,124 @@ function LaurelWreath({ color = "#1a1a1a", size = 24, flip = false }: { color?: 
   );
 }
 
-// Social Proof Element Renderer
-function SocialProofRenderer({ element }: { element: SocialProofElement }) {
+// Draggable & Resizable Social Proof Element Renderer
+interface SocialProofRendererProps {
+  element: SocialProofElement;
+  canvasRef: React.RefObject<HTMLDivElement | null>;
+  onPositionChange?: (x: number, y: number) => void;
+  onScaleChange?: (scale: number) => void;
+  isSelected?: boolean;
+  onSelect?: () => void;
+}
+
+function SocialProofRenderer({
+  element,
+  canvasRef,
+  onPositionChange,
+  onScaleChange,
+  isSelected,
+  onSelect
+}: SocialProofRendererProps) {
+  const [isDragging, setIsDragging] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
+  const dragStartRef = useRef<{ x: number; y: number; posX: number; posY: number } | null>(null);
+  const initialScaleRef = useRef<number>(element.style.scale);
+
+  // Handle drag
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!onPositionChange || !canvasRef?.current || isResizing) return;
+    e.preventDefault();
+    e.stopPropagation();
+    onSelect?.();
+
+    const rect = canvasRef.current.getBoundingClientRect();
+    dragStartRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      posX: element.positionX,
+      posY: element.positionY,
+    };
+    setIsDragging(true);
+  };
+
+  useEffect(() => {
+    if (!isDragging || !onPositionChange || !canvasRef?.current) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!dragStartRef.current || !canvasRef?.current) return;
+
+      const rect = canvasRef.current.getBoundingClientRect();
+      const deltaX = (e.clientX - dragStartRef.current.x) / rect.width;
+      const deltaY = (e.clientY - dragStartRef.current.y) / rect.height;
+
+      const newX = Math.max(0.05, Math.min(0.95, dragStartRef.current.posX + deltaX));
+      const newY = Math.max(0.05, Math.min(0.95, dragStartRef.current.posY + deltaY));
+
+      onPositionChange(newX, newY);
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+      dragStartRef.current = null;
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isDragging, onPositionChange, canvasRef]);
+
   if (!element.enabled) return null;
+
+  // Resize handle component
+  const ResizeHandle = ({ position }: { position: 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight' }) => {
+    const handleResize = (e: React.MouseEvent) => {
+      if (!onScaleChange || !canvasRef?.current) return;
+      e.preventDefault();
+      e.stopPropagation();
+      onSelect?.();
+      setIsResizing(true);
+      initialScaleRef.current = element.style.scale;
+
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const startScale = element.style.scale;
+
+      const handleMouseMove = (moveE: MouseEvent) => {
+        const deltaX = moveE.clientX - startX;
+        const deltaY = moveE.clientY - startY;
+        // Use diagonal distance for uniform scaling
+        const delta = (deltaX + deltaY) / 2;
+        const scaleFactor = delta / 100;
+        const newScale = Math.max(0.3, Math.min(3, startScale + scaleFactor));
+        onScaleChange(newScale);
+      };
+
+      const handleMouseUp = () => {
+        setIsResizing(false);
+        window.removeEventListener("mousemove", handleMouseMove);
+        window.removeEventListener("mouseup", handleMouseUp);
+      };
+
+      window.addEventListener("mousemove", handleMouseMove);
+      window.addEventListener("mouseup", handleMouseUp);
+    };
+
+    const positionStyles = resizeHandleClasses[position];
+    return (
+      <div
+        className="absolute opacity-0 group-hover:opacity-100 transition-opacity z-50"
+        style={{
+          ...resizeHandleStyle,
+          ...positionStyles,
+        }}
+        onMouseDown={handleResize}
+      />
+    );
+  };
 
   const baseStyle: React.CSSProperties = {
     position: "absolute",
@@ -585,57 +832,114 @@ function SocialProofRenderer({ element }: { element: SocialProofElement }) {
     top: `${element.positionY * 100}%`,
     transform: `translate(-50%, -50%) scale(${element.style.scale})`,
     opacity: element.style.opacity,
-    zIndex: 20,
+    zIndex: isDragging || isResizing ? 100 : 20,
+    cursor: onPositionChange ? (isDragging ? "grabbing" : "grab") : "default",
+    transition: isDragging || isResizing ? "none" : "box-shadow 0.2s, transform 0.15s",
+    borderRadius: "16px",
+    outline: isSelected ? "2px solid #0a84ff" : "none",
+    outlineOffset: "4px",
   };
 
+  // iOS glassmorphism specifications (from Apple Liquid Glass design)
+  // Background: rgba(255,255,255,0.2) - 20% opacity white tint
+  // Backdrop filter: blur(4px) to blur(20px)
+  // Box shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.35)
+  // Border radius: 10px (iOS standard)
+  // Border: 1px solid rgba(255,255,255,0.2)
   const containerStyle: React.CSSProperties = {
-    backgroundColor: element.style.backgroundColor || "rgba(0,0,0,0.4)",
-    backdropFilter: element.style.blur ? `blur(${element.style.blur}px)` : "blur(8px)",
-    borderRadius: "12px",
-    padding: "6px 12px",
+    backgroundColor: element.style.backgroundColor || "rgba(255, 255, 255, 0.2)",
+    backdropFilter: element.style.blur ? `blur(${element.style.blur}px) saturate(180%)` : "blur(10px) saturate(180%)",
+    WebkitBackdropFilter: element.style.blur ? `blur(${element.style.blur}px) saturate(180%)` : "blur(10px) saturate(180%)",
+    borderRadius: "10px",
+    padding: "8px 14px",
     display: "flex",
     alignItems: "center",
-    gap: "6px",
+    gap: "8px",
+    border: "1px solid rgba(255, 255, 255, 0.2)",
+    boxShadow: "0 8px 32px 0 rgba(31, 38, 135, 0.15)",
   };
+
+  // Wrapper with resize handles
+  const ElementWrapper = ({ children }: { children: React.ReactNode }) => (
+    <div style={baseStyle} onMouseDown={handleMouseDown} className="group">
+      {children}
+      {/* Resize handles - show on hover/selected */}
+      {onScaleChange && (
+        <>
+          <ResizeHandle position="topLeft" />
+          <ResizeHandle position="topRight" />
+          <ResizeHandle position="bottomLeft" />
+          <ResizeHandle position="bottomRight" />
+        </>
+      )}
+      {/* Scale indicator */}
+      {isSelected && (
+        <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded bg-[#1c1c1e]/90 border border-[#3a3a3c] text-[9px] text-[#8e8e93] whitespace-nowrap">
+          {Math.round(element.style.scale * 100)}%
+        </div>
+      )}
+    </div>
+  );
 
   switch (element.type) {
     case "rating":
+      // iOS typography specifications:
+      // Primary text: 17pt Regular
+      // Secondary text: 15pt Regular, #3C3C43 @ 60% opacity
+      // Tertiary text: 12pt Regular
       return (
-        <div style={baseStyle}>
+        <ElementWrapper>
           <div style={containerStyle}>
             {element.showStars && (
               <RatingStars rating={element.rating || 4.8} color={element.style.secondaryColor} />
             )}
-            <span style={{ color: element.style.color, fontSize: "11px", fontWeight: 600 }}>
+            <span style={{
+              color: element.style.color,
+              fontSize: "15px", // iOS secondary text size
+              fontWeight: 600,
+              fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif",
+              letterSpacing: "-0.24px", // iOS standard letter spacing
+            }}>
               {element.rating?.toFixed(1)}
             </span>
             {element.ratingCount && (
-              <span style={{ color: "rgba(255,255,255,0.6)", fontSize: "9px" }}>
+              <span style={{
+                color: "rgba(60, 60, 67, 0.6)", // iOS #3C3C43 @ 60% opacity
+                fontSize: "12px", // iOS tertiary text size
+                fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif",
+                letterSpacing: "-0.08px",
+              }}>
                 ({element.ratingCount})
               </span>
             )}
           </div>
-        </div>
+        </ElementWrapper>
       );
 
     case "downloads":
       return (
-        <div style={baseStyle}>
+        <ElementWrapper>
           <div style={containerStyle}>
-            <svg className="w-3 h-3" fill={element.style.secondaryColor} viewBox="0 0 20 20">
+            <svg style={{ width: "14px", height: "14px" }} fill={element.style.secondaryColor} viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
             </svg>
-            <span style={{ color: element.style.color, fontSize: "11px", fontWeight: 600 }}>
+            <span style={{
+              color: element.style.color,
+              fontSize: "15px", // iOS secondary text size
+              fontWeight: 600,
+              fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif",
+              letterSpacing: "-0.24px",
+            }}>
               {element.downloadCount || "10M+"} downloads
             </span>
           </div>
-        </div>
+        </ElementWrapper>
       );
 
     case "award":
       // Headspace-style award badge with laurel wreaths
       return (
-        <div style={baseStyle}>
+        <ElementWrapper>
           <div style={{
             display: "flex",
             alignItems: "center",
@@ -674,12 +978,12 @@ function SocialProofRenderer({ element }: { element: SocialProofElement }) {
             {/* Right laurel */}
             <LaurelWreath color={element.style.color} size={20} flip />
           </div>
-        </div>
+        </ElementWrapper>
       );
 
     case "university":
       return (
-        <div style={baseStyle}>
+        <ElementWrapper>
           <div style={{ ...containerStyle, flexDirection: "column", gap: "4px", padding: "8px 14px" }}>
             {element.logosLabel && (
               <span style={{ color: "rgba(255,255,255,0.7)", fontSize: "8px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
@@ -712,11 +1016,14 @@ function SocialProofRenderer({ element }: { element: SocialProofElement }) {
               })}
             </div>
           </div>
-        </div>
+        </ElementWrapper>
       );
 
     case "testimonial":
-      // Real app-style testimonial card with avatar and stars
+      // iOS-style testimonial card with accurate specifications
+      // Card border-radius: 20px (App Store standard)
+      // Shadow: 0 8px 32px rgba(31, 38, 135, 0.15)
+      // Typography: SF Pro, 17pt primary, 15pt secondary, 12pt tertiary
       const testimonialStyle = element.testimonialStyle || "card";
       const testimonialRating = element.testimonialRating ?? 5;
       const avatarConfig = element.testimonialAvatar || {
@@ -726,45 +1033,50 @@ function SocialProofRenderer({ element }: { element: SocialProofElement }) {
       };
 
       if (testimonialStyle === "bubble") {
-        // Speech bubble style
+        // Speech bubble style with iOS glassmorphism
         return (
-          <div style={baseStyle}>
+          <ElementWrapper>
             <div style={{
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
-              gap: "8px",
+              gap: "10px",
             }}>
-              {/* Speech bubble */}
+              {/* Speech bubble with glassmorphism */}
               <div style={{
-                backgroundColor: element.style.backgroundColor || "rgba(255,255,255,0.95)",
-                borderRadius: "16px",
-                padding: "12px 16px",
-                maxWidth: "180px",
+                backgroundColor: element.style.backgroundColor || "rgba(255, 255, 255, 0.85)",
+                backdropFilter: "blur(10px) saturate(180%)",
+                WebkitBackdropFilter: "blur(10px) saturate(180%)",
+                borderRadius: "20px", // iOS card radius
+                padding: "14px 18px",
+                maxWidth: "200px",
                 position: "relative",
-                boxShadow: "0 4px 20px rgba(0,0,0,0.12)",
+                boxShadow: "0 8px 32px rgba(31, 38, 135, 0.15)",
+                border: "1px solid rgba(255, 255, 255, 0.2)",
               }}>
                 <p style={{
                   color: element.style.color || "#1a1a2e",
-                  fontSize: "11px",
+                  fontSize: "15px", // iOS secondary text
                   fontWeight: 500,
+                  fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif",
                   lineHeight: 1.4,
                   textAlign: "center",
                   margin: 0,
+                  letterSpacing: "-0.24px",
                 }}>
                   "{element.testimonialText || "This app changed my life!"}"
                 </p>
                 {/* Bubble tail */}
                 <div style={{
                   position: "absolute",
-                  bottom: "-8px",
+                  bottom: "-10px",
                   left: "50%",
                   transform: "translateX(-50%)",
                   width: 0,
                   height: 0,
-                  borderLeft: "8px solid transparent",
-                  borderRight: "8px solid transparent",
-                  borderTop: `8px solid ${element.style.backgroundColor || "rgba(255,255,255,0.95)"}`,
+                  borderLeft: "10px solid transparent",
+                  borderRight: "10px solid transparent",
+                  borderTop: `10px solid ${element.style.backgroundColor || "rgba(255, 255, 255, 0.85)"}`,
                 }} />
               </div>
               {/* Avatar and name */}
@@ -772,11 +1084,11 @@ function SocialProofRenderer({ element }: { element: SocialProofElement }) {
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
-                gap: "4px",
+                gap: "6px",
               }}>
                 <div style={{
-                  width: "32px",
-                  height: "32px",
+                  width: "36px",
+                  height: "36px",
                   borderRadius: "50%",
                   overflow: "hidden",
                   backgroundColor: avatarConfig.color || "#6366f1",
@@ -784,44 +1096,58 @@ function SocialProofRenderer({ element }: { element: SocialProofElement }) {
                   alignItems: "center",
                   justifyContent: "center",
                   border: "2px solid white",
-                  boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
                 }}>
                   {avatarConfig.imageUrl ? (
                     <img src={avatarConfig.imageUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                   ) : (
-                    <span style={{ fontSize: "11px", fontWeight: 700, color: "#fff" }}>{avatarConfig.initials}</span>
+                    <span style={{
+                      fontSize: "12px",
+                      fontWeight: 700,
+                      color: "#fff",
+                      fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif",
+                    }}>{avatarConfig.initials}</span>
                   )}
                 </div>
-                <span style={{ color: element.style.color || "#fff", fontSize: "10px", fontWeight: 600 }}>
+                <span style={{
+                  color: element.style.color || "#fff",
+                  fontSize: "12px", // iOS tertiary text
+                  fontWeight: 600,
+                  fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif",
+                  letterSpacing: "-0.08px",
+                }}>
                   {element.testimonialAuthor || "Happy User"}
                 </span>
               </div>
             </div>
-          </div>
+          </ElementWrapper>
         );
       }
 
-      // Card style (default) - like real app reviews
+      // Card style (default) - iOS App Store review card style
       return (
-        <div style={baseStyle}>
+        <ElementWrapper>
           <div style={{
-            backgroundColor: element.style.backgroundColor || "rgba(255,255,255,0.95)",
-            borderRadius: "16px",
-            padding: "14px",
-            maxWidth: "200px",
-            boxShadow: "0 4px 20px rgba(0,0,0,0.12)",
+            backgroundColor: element.style.backgroundColor || "rgba(255, 255, 255, 0.9)",
+            backdropFilter: "blur(10px) saturate(180%)",
+            WebkitBackdropFilter: "blur(10px) saturate(180%)",
+            borderRadius: "20px", // iOS standard card radius
+            padding: "16px",
+            maxWidth: "220px",
+            boxShadow: "0 8px 32px rgba(31, 38, 135, 0.15)",
+            border: "1px solid rgba(255, 255, 255, 0.2)",
           }}>
             {/* Header with avatar and name */}
             <div style={{
               display: "flex",
               alignItems: "center",
-              gap: "10px",
-              marginBottom: "10px",
+              gap: "12px",
+              marginBottom: "12px",
             }}>
-              {/* Avatar */}
+              {/* Avatar - iOS style with 22.2% corner radius for squircle effect */}
               <div style={{
-                width: "36px",
-                height: "36px",
+                width: "40px",
+                height: "40px",
                 borderRadius: "50%",
                 overflow: "hidden",
                 backgroundColor: avatarConfig.color || "#6366f1",
@@ -829,31 +1155,39 @@ function SocialProofRenderer({ element }: { element: SocialProofElement }) {
                 alignItems: "center",
                 justifyContent: "center",
                 flexShrink: 0,
+                boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
               }}>
                 {avatarConfig.imageUrl ? (
                   <img src={avatarConfig.imageUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                 ) : (
-                  <span style={{ fontSize: "12px", fontWeight: 700, color: "#fff" }}>{avatarConfig.initials}</span>
+                  <span style={{
+                    fontSize: "14px",
+                    fontWeight: 700,
+                    color: "#fff",
+                    fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif",
+                  }}>{avatarConfig.initials}</span>
                 )}
               </div>
               {/* Name and stars */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
                 <span style={{
                   color: element.style.color || "#1a1a2e",
-                  fontSize: "11px",
+                  fontSize: "15px", // iOS secondary text
                   fontWeight: 600,
+                  fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif",
+                  letterSpacing: "-0.24px",
                 }}>
                   {element.testimonialAuthor || "Happy User"}
                 </span>
-                {/* Star rating */}
-                <div style={{ display: "flex", gap: "1px" }}>
+                {/* Star rating - iOS style */}
+                <div style={{ display: "flex", gap: "2px" }}>
                   {[1, 2, 3, 4, 5].map((star) => (
                     <svg
                       key={star}
-                      width="10"
-                      height="10"
+                      width="12"
+                      height="12"
                       viewBox="0 0 20 20"
-                      fill={star <= testimonialRating ? element.style.secondaryColor || "#FFD700" : "#e0e0e0"}
+                      fill={star <= testimonialRating ? element.style.secondaryColor || "#FF9500" : "#e0e0e0"}
                     >
                       <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                     </svg>
@@ -861,25 +1195,27 @@ function SocialProofRenderer({ element }: { element: SocialProofElement }) {
                 </div>
               </div>
             </div>
-            {/* Quote */}
+            {/* Quote - iOS body text */}
             <p style={{
               color: element.style.color || "#1a1a2e",
-              fontSize: "11px",
+              fontSize: "15px", // iOS secondary text
               fontWeight: 400,
-              lineHeight: 1.5,
+              fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif",
+              lineHeight: 1.47, // iOS standard line height
               margin: 0,
+              letterSpacing: "-0.24px",
               opacity: 0.85,
             }}>
               "{element.testimonialText || "This app changed my life!"}"
             </p>
           </div>
-        </div>
+        </ElementWrapper>
       );
 
     case "press":
       // Headspace-style vertical press logos
       return (
-        <div style={baseStyle}>
+        <ElementWrapper>
           <div style={{
             display: "flex",
             flexDirection: "column",
@@ -910,11 +1246,12 @@ function SocialProofRenderer({ element }: { element: SocialProofElement }) {
               );
             })}
           </div>
-        </div>
+        </ElementWrapper>
       );
 
     case "trusted-by":
-      // Real app-style social proof with overlapping avatar stack (facepile)
+      // iOS-style social proof with overlapping avatar stack (facepile)
+      // Using iOS glassmorphism and typography specifications
       const defaultAvatars: { initials: string; color: string; imageUrl?: string }[] = [
         { initials: "JD", color: "#FF6B6B" },
         { initials: "AS", color: "#4ECDC4" },
@@ -928,22 +1265,25 @@ function SocialProofRenderer({ element }: { element: SocialProofElement }) {
         color: a.color,
         imageUrl: a.imageUrl,
       }));
-      const avatarSize = 28;
-      const avatarOverlap = 8;
+      const avatarSize = 32; // Slightly larger for better visibility
+      const avatarOverlap = 10;
       const borderWidth = 2;
       const borderColor = element.style.borderColor || "#ffffff";
       const overflowCount = element.avatarOverflow ?? 99;
 
       return (
-        <div style={baseStyle}>
+        <ElementWrapper>
           <div style={{
             ...containerStyle,
             flexDirection: "column",
-            gap: "8px",
-            padding: "12px 16px",
-            backgroundColor: element.style.backgroundColor || "rgba(255,255,255,0.95)",
-            borderRadius: "16px",
-            boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+            gap: "10px",
+            padding: "16px 20px",
+            backgroundColor: element.style.backgroundColor || "rgba(255, 255, 255, 0.9)",
+            backdropFilter: "blur(10px) saturate(180%)",
+            WebkitBackdropFilter: "blur(10px) saturate(180%)",
+            borderRadius: "20px", // iOS card radius
+            boxShadow: "0 8px 32px rgba(31, 38, 135, 0.15)",
+            border: "1px solid rgba(255, 255, 255, 0.2)",
           }}>
             {/* Avatar Stack (Facepile) */}
             <div style={{
@@ -971,7 +1311,7 @@ function SocialProofRenderer({ element }: { element: SocialProofElement }) {
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                      boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
                     }}
                   >
                     {avatar.imageUrl ? (
@@ -986,10 +1326,11 @@ function SocialProofRenderer({ element }: { element: SocialProofElement }) {
                       />
                     ) : (
                       <span style={{
-                        fontSize: "10px",
+                        fontSize: "11px",
                         fontWeight: 700,
                         color: "#ffffff",
                         textTransform: "uppercase",
+                        fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif",
                       }}>
                         {avatar.initials || "?"}
                       </span>
@@ -1010,13 +1351,14 @@ function SocialProofRenderer({ element }: { element: SocialProofElement }) {
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                      boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
                     }}
                   >
                     <span style={{
-                      fontSize: "9px",
+                      fontSize: "10px",
                       fontWeight: 700,
                       color: "#ffffff",
+                      fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif",
                     }}>
                       +{overflowCount > 999 ? "999" : overflowCount}
                     </span>
@@ -1024,51 +1366,62 @@ function SocialProofRenderer({ element }: { element: SocialProofElement }) {
                 )}
               </div>
             </div>
-            {/* Text */}
+            {/* Text - iOS typography */}
             <div style={{
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
-              gap: "2px",
+              gap: "3px",
             }}>
               <span style={{
                 color: element.style.color || "#1a1a2e",
-                fontSize: "13px",
+                fontSize: "15px", // iOS secondary text
                 fontWeight: 700,
+                fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif",
+                letterSpacing: "-0.24px",
               }}>
                 {element.downloadCount || "2M+"} users
               </span>
               <span style={{
-                color: "rgba(0,0,0,0.5)",
-                fontSize: "10px",
+                color: "rgba(60, 60, 67, 0.6)", // iOS secondary label color
+                fontSize: "12px", // iOS tertiary text
                 fontWeight: 500,
+                fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif",
+                letterSpacing: "-0.08px",
               }}>
                 Trust this app
               </span>
             </div>
           </div>
-        </div>
+        </ElementWrapper>
       );
 
     case "feature-cards":
-      // Headspace-style feature cards grid
+      // iOS-style feature cards grid with glassmorphism
+      // Card radius: 16px (iOS card standard)
+      // Shadow: 0 8px 32px rgba(31, 38, 135, 0.15)
       const cards = element.featureCards || [];
       const columns = cards.length <= 4 ? 2 : cards.length <= 6 ? 2 : 3;
       return (
-        <div style={baseStyle}>
+        <ElementWrapper>
           <div style={{
             display: "grid",
             gridTemplateColumns: `repeat(${columns}, 1fr)`,
-            gap: "8px",
-            padding: "8px",
+            gap: "10px",
+            padding: "10px",
+            backgroundColor: "rgba(255, 255, 255, 0.1)",
+            backdropFilter: "blur(8px) saturate(180%)",
+            WebkitBackdropFilter: "blur(8px) saturate(180%)",
+            borderRadius: "20px",
+            border: "1px solid rgba(255, 255, 255, 0.15)",
           }}>
             {cards.map((card) => (
               <div
                 key={card.id}
                 style={{
-                  width: "70px",
-                  height: "70px",
-                  borderRadius: "12px",
+                  width: "76px",
+                  height: "76px",
+                  borderRadius: "16px", // iOS card radius
                   backgroundColor: card.color,
                   display: "flex",
                   flexDirection: "column",
@@ -1076,6 +1429,7 @@ function SocialProofRenderer({ element }: { element: SocialProofElement }) {
                   justifyContent: "center",
                   position: "relative",
                   overflow: "hidden",
+                  boxShadow: "0 4px 16px rgba(0, 0, 0, 0.1)",
                 }}
               >
                 {/* Decorative background pattern */}
@@ -1107,26 +1461,290 @@ function SocialProofRenderer({ element }: { element: SocialProofElement }) {
                   </div>
                 )}
 
-                {/* Label */}
+                {/* Label - iOS typography */}
                 <span style={{
                   color: "white",
-                  fontSize: "9px",
+                  fontSize: "10px",
                   fontWeight: 600,
+                  fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif",
                   textAlign: "center",
                   zIndex: 1,
-                  textShadow: "0 1px 2px rgba(0,0,0,0.2)",
+                  textShadow: "0 1px 3px rgba(0,0,0,0.25)",
+                  letterSpacing: "-0.08px",
                 }}>
                   {card.label}
                 </span>
               </div>
             ))}
           </div>
-        </div>
+        </ElementWrapper>
       );
 
     default:
       return null;
   }
+}
+
+// iOS Notification Renderer - Realistic iOS notifications
+interface NotificationRendererProps {
+  notification: NotificationElement;
+  canvasRef: React.RefObject<HTMLDivElement | null>;
+  onPositionChange?: (x: number, y: number) => void;
+  onScaleChange?: (scale: number) => void;
+  isSelected?: boolean;
+  onSelect?: () => void;
+}
+
+function NotificationRenderer({
+  notification,
+  canvasRef,
+  onPositionChange,
+  onScaleChange,
+  isSelected,
+  onSelect
+}: NotificationRendererProps) {
+  const [isDragging, setIsDragging] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
+  const dragStartRef = useRef<{ x: number; y: number; posX: number; posY: number } | null>(null);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!onPositionChange || !canvasRef?.current || isResizing) return;
+    e.preventDefault();
+    e.stopPropagation();
+    onSelect?.();
+
+    dragStartRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      posX: notification.positionX,
+      posY: notification.positionY,
+    };
+    setIsDragging(true);
+  };
+
+  useEffect(() => {
+    if (!isDragging || !onPositionChange || !canvasRef?.current) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!dragStartRef.current || !canvasRef?.current) return;
+
+      const rect = canvasRef.current.getBoundingClientRect();
+      const deltaX = (e.clientX - dragStartRef.current.x) / rect.width;
+      const deltaY = (e.clientY - dragStartRef.current.y) / rect.height;
+
+      const newX = Math.max(0.05, Math.min(0.95, dragStartRef.current.posX + deltaX));
+      const newY = Math.max(0.05, Math.min(0.95, dragStartRef.current.posY + deltaY));
+
+      onPositionChange(newX, newY);
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+      dragStartRef.current = null;
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isDragging, onPositionChange, canvasRef]);
+
+  if (!notification.enabled) return null;
+
+  const isDark = notification.style.dark;
+
+  // Resize handle for notifications
+  const ResizeHandle = ({ position }: { position: 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight' }) => {
+    const handleResize = (e: React.MouseEvent) => {
+      if (!onScaleChange) return;
+      e.preventDefault();
+      e.stopPropagation();
+      onSelect?.();
+      setIsResizing(true);
+
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const startScale = notification.style.scale;
+
+      const handleMouseMove = (moveE: MouseEvent) => {
+        const deltaX = moveE.clientX - startX;
+        const deltaY = moveE.clientY - startY;
+        const delta = (deltaX + deltaY) / 2;
+        const scaleFactor = delta / 100;
+        const newScale = Math.max(0.3, Math.min(3, startScale + scaleFactor));
+        onScaleChange(newScale);
+      };
+
+      const handleMouseUp = () => {
+        setIsResizing(false);
+        window.removeEventListener("mousemove", handleMouseMove);
+        window.removeEventListener("mouseup", handleMouseUp);
+      };
+
+      window.addEventListener("mousemove", handleMouseMove);
+      window.addEventListener("mouseup", handleMouseUp);
+    };
+
+    const positionStyles = resizeHandleClasses[position];
+    return (
+      <div
+        className="absolute opacity-0 group-hover:opacity-100 transition-opacity z-50"
+        style={{
+          ...resizeHandleStyle,
+          ...positionStyles,
+        }}
+        onMouseDown={handleResize}
+      />
+    );
+  };
+
+  // iOS notification uses SF Pro font - these are the exact iOS specifications:
+  // - App icon: 38×38 pt (notification size from Apple HIG)
+  // - App name: 13pt SF Pro Text Semibold
+  // - Title: 15pt SF Pro Text Semibold
+  // - Message: 15pt SF Pro Text Regular
+  // - Time: 13pt SF Pro Text Regular, secondary color
+  // - Corner radius: 13pt (iOS standard for notifications)
+  // - Padding: 12pt
+  // - Blur: UIBlurEffect.Style.systemMaterial (~20px)
+
+  return (
+    <div
+      className="group"
+      style={{
+        position: "absolute",
+        left: `${notification.positionX * 100}%`,
+        top: `${notification.positionY * 100}%`,
+        transform: `translate(-50%, -50%) scale(${notification.style.scale})`,
+        opacity: notification.style.opacity,
+        zIndex: isDragging || isResizing ? 100 : 25,
+        cursor: onPositionChange ? (isDragging ? "grabbing" : "grab") : "default",
+        transition: isDragging || isResizing ? "none" : "transform 0.15s",
+        outline: isSelected ? "2px solid #0a84ff" : "none",
+        outlineOffset: "4px",
+        borderRadius: "13px",
+      }}
+      onMouseDown={handleMouseDown}
+    >
+      {/* iOS Notification Banner - Accurate iOS 17 specifications */}
+      <div
+        style={{
+          width: "340px", // Standard notification width on iPhone
+          backgroundColor: isDark
+            ? "rgba(28, 28, 30, 0.82)" // iOS dark material
+            : "rgba(255, 255, 255, 0.82)", // iOS light material
+          backdropFilter: `blur(${notification.style.blur || 25}px) saturate(180%)`,
+          WebkitBackdropFilter: `blur(${notification.style.blur || 25}px) saturate(180%)`,
+          borderRadius: "13px", // iOS notification corner radius
+          padding: "12px", // 12pt padding
+          boxShadow: isDark
+            ? "0 0 0 0.5px rgba(255,255,255,0.1), 0 8px 40px rgba(0,0,0,0.35)"
+            : "0 0 0 0.5px rgba(0,0,0,0.04), 0 8px 40px rgba(0,0,0,0.12)",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
+          {/* App Icon - 38×38 pt with iOS superellipse corners (22% radius) */}
+          <div
+            style={{
+              width: "38px",
+              height: "38px",
+              borderRadius: "8.4px", // 38 × 0.222 = 8.4 (iOS icon corner formula)
+              backgroundColor: "#007AFF",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "20px",
+              flexShrink: 0,
+              boxShadow: "0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.08)",
+            }}
+          >
+            {notification.appIcon || "📱"}
+          </div>
+
+          {/* Content */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {/* Header row - App name and time */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1px" }}>
+              <span
+                style={{
+                  fontSize: "13px", // iOS app name size
+                  fontWeight: 600, // Semibold
+                  color: isDark ? "rgba(255,255,255,0.6)" : "rgba(60,60,67,0.6)", // iOS secondary label
+                  letterSpacing: "-0.08px",
+                  fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif",
+                }}
+              >
+                {notification.appName || "App Name"}
+              </span>
+              <span
+                style={{
+                  fontSize: "13px",
+                  fontWeight: 400,
+                  color: isDark ? "rgba(255,255,255,0.4)" : "rgba(60,60,67,0.4)", // iOS tertiary label
+                  fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif",
+                }}
+              >
+                {notification.time || "now"}
+              </span>
+            </div>
+
+            {/* Title - 15pt Semibold */}
+            <div
+              style={{
+                fontSize: "15px",
+                fontWeight: 600,
+                color: isDark ? "#FFFFFF" : "#000000",
+                marginBottom: "2px",
+                letterSpacing: "-0.24px",
+                lineHeight: 1.27, // 19pt line height / 15pt
+                fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif",
+              }}
+            >
+              {notification.title || "Notification Title"}
+            </div>
+
+            {/* Message - 15pt Regular */}
+            <div
+              style={{
+                fontSize: "15px",
+                fontWeight: 400,
+                color: isDark ? "rgba(255,255,255,0.85)" : "rgba(0,0,0,0.85)",
+                lineHeight: 1.27,
+                letterSpacing: "-0.24px",
+                display: "-webkit-box",
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: "vertical",
+                overflow: "hidden",
+                fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif",
+              }}
+            >
+              {notification.message || "This is the notification message that appears below the title."}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Resize handles */}
+      {onScaleChange && (
+        <>
+          <ResizeHandle position="topLeft" />
+          <ResizeHandle position="topRight" />
+          <ResizeHandle position="bottomLeft" />
+          <ResizeHandle position="bottomRight" />
+        </>
+      )}
+
+      {/* Scale indicator */}
+      {isSelected && (
+        <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded bg-[#1c1c1e]/90 border border-[#3a3a3c] text-[9px] text-[#8e8e93] whitespace-nowrap">
+          {Math.round(notification.style.scale * 100)}%
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function Canvas() {
@@ -1139,7 +1757,12 @@ export function Canvas() {
     selectedTextId,
     updateDevice,
     updateText,
+    updateSocialProof,
+    updateNotification,
   } = useEditorStore();
+
+  const [selectedSocialProofId, setSelectedSocialProofId] = useState<string | null>(null);
+  const [selectedNotificationId, setSelectedNotificationId] = useState<string | null>(null);
 
   const [selectedLayout, setSelectedLayout] = useState<string>("custom");
   const [deviceImages, setDeviceImages] = useState<Record<number, string>>({});
@@ -1185,6 +1808,49 @@ export function Canvas() {
     [selectedScreenshotId, updateText]
   );
 
+  // Handle social proof position change
+  const handleSocialProofPositionChange = useCallback(
+    (elementId: string, x: number, y: number) => {
+      if (selectedScreenshotId) {
+        updateSocialProof(selectedScreenshotId, elementId, { positionX: x, positionY: y });
+      }
+    },
+    [selectedScreenshotId, updateSocialProof]
+  );
+
+  // Handle social proof scale change
+  const handleSocialProofScaleChange = useCallback(
+    (elementId: string, scale: number) => {
+      if (selectedScreenshotId) {
+        updateSocialProof(selectedScreenshotId, elementId, { style: { ...selectedScreenshot?.socialProof?.find(sp => sp.id === elementId)?.style, scale } } as any);
+      }
+    },
+    [selectedScreenshotId, updateSocialProof, selectedScreenshot]
+  );
+
+  // Handle notification position change
+  const handleNotificationPositionChange = useCallback(
+    (notificationId: string, x: number, y: number) => {
+      if (selectedScreenshotId) {
+        updateNotification(selectedScreenshotId, notificationId, { positionX: x, positionY: y });
+      }
+    },
+    [selectedScreenshotId, updateNotification]
+  );
+
+  // Handle notification scale change
+  const handleNotificationScaleChange = useCallback(
+    (notificationId: string, scale: number) => {
+      if (selectedScreenshotId) {
+        const notification = selectedScreenshot?.notifications?.find(n => n.id === notificationId);
+        if (notification) {
+          updateNotification(selectedScreenshotId, notificationId, { style: { ...notification.style, scale } });
+        }
+      }
+    },
+    [selectedScreenshotId, updateNotification, selectedScreenshot]
+  );
+
   const handleImageUpload = useCallback(
     async (file: File, deviceIndex: number) => {
       if (selectedScreenshotId) {
@@ -1218,7 +1884,7 @@ export function Canvas() {
     );
   }
 
-  const { template, device, image, texts, socialProof } = selectedScreenshot;
+  const { template, device, image, texts, socialProof, notifications } = selectedScreenshot;
   const layout = LAYOUTS[selectedLayout] || LAYOUTS["single-center"];
 
   // Generate background style
@@ -1396,13 +2062,46 @@ export function Canvas() {
 
               {/* Social Proof Elements */}
               {socialProof?.map((element) => (
-                <SocialProofRenderer key={element.id} element={element} />
+                <SocialProofRenderer
+                  key={element.id}
+                  element={element}
+                  canvasRef={canvasRef}
+                  isSelected={selectedSocialProofId === element.id}
+                  onSelect={() => {
+                    setSelectedSocialProofId(element.id);
+                    setSelectedNotificationId(null);
+                    selectText(null);
+                  }}
+                  onPositionChange={(x, y) => handleSocialProofPositionChange(element.id, x, y)}
+                  onScaleChange={(scale) => handleSocialProofScaleChange(element.id, scale)}
+                />
               ))}
 
-              {/* Click to deselect text */}
+              {/* iOS Notifications */}
+              {notifications?.map((notification) => (
+                <NotificationRenderer
+                  key={notification.id}
+                  notification={notification}
+                  canvasRef={canvasRef}
+                  isSelected={selectedNotificationId === notification.id}
+                  onSelect={() => {
+                    setSelectedNotificationId(notification.id);
+                    setSelectedSocialProofId(null);
+                    selectText(null);
+                  }}
+                  onPositionChange={(x, y) => handleNotificationPositionChange(notification.id, x, y)}
+                  onScaleChange={(scale) => handleNotificationScaleChange(notification.id, scale)}
+                />
+              ))}
+
+              {/* Click to deselect text, social proof, and notifications */}
               <div
                 className="absolute inset-0"
-                onClick={() => selectText(null)}
+                onClick={() => {
+                  selectText(null);
+                  setSelectedSocialProofId(null);
+                  setSelectedNotificationId(null);
+                }}
                 style={{ zIndex: -1 }}
               />
             </div>
