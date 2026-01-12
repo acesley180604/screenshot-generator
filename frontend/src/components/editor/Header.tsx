@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Layout, Download, Sparkles, Upload } from "lucide-react";
+import { Layout, Download, Sparkles, Upload, FolderOpen, Save } from "lucide-react";
 import { useEditorStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,9 @@ export function Header() {
     setShowTemplateGallery,
     setShowExportDialog,
     setShowBulkImportDialog,
+    setShowProjectManager,
+    saveProject,
+    renameProject,
   } = useEditorStore();
 
   return (
@@ -43,7 +46,7 @@ export function Header() {
         <div className="relative group">
           <Input
             value={project.name}
-            onChange={(e) => setProjectName(e.target.value)}
+            onChange={(e) => renameProject(e.target.value)}
             className="h-9 w-56 text-sm font-medium bg-transparent border-transparent hover:bg-[#2c2c2e] focus:bg-[#1c1c1e] focus:border-[#0a84ff] focus:shadow-[0_0_0_4px_rgba(10,132,255,0.15)] rounded-lg px-3 transition-all duration-200"
             placeholder="Project name"
           />
@@ -51,6 +54,27 @@ export function Header() {
       </div>
 
       <div className="flex items-center gap-3">
+        {/* Projects Button */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setShowProjectManager(true)}
+          className="gap-2 font-medium text-[#8e8e93] hover:text-white"
+        >
+          <FolderOpen className="w-4 h-4" />
+          <span>Projects</span>
+        </Button>
+
+        {/* Save Button */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => saveProject()}
+          className="gap-2 font-medium text-[#8e8e93] hover:text-white"
+        >
+          <Save className="w-4 h-4" />
+          <span>Save</span>
+        </Button>
         {/* Bulk Import Button */}
         <Button
           variant="secondary"

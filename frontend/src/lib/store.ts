@@ -200,7 +200,7 @@ interface EditorState {
   // Actions - Device
   updateDevice: (screenshotId: string, device: Partial<DeviceConfig>) => void;
   updateDeviceAll: (device: Partial<DeviceConfig>) => void;
-  setScreenshotImage: (screenshotId: string, imageUrl: string) => void;
+  setScreenshotImage: (screenshotId: string, imageUrl: string, imagePath?: string) => void;
   nudgeDevice: (screenshotId: string, direction: 'up' | 'down' | 'left' | 'right', amount?: number) => void;
 
   // Actions - Text
@@ -694,14 +694,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }));
   },
 
-  setScreenshotImage: (screenshotId, imageUrl) => {
+  setScreenshotImage: (screenshotId, imageUrl, imagePath) => {
     get().pushHistory('Set screenshot image');
     set((state) => ({
       project: {
         ...state.project,
         screenshots: state.project.screenshots.map((s) =>
           s.id === screenshotId
-            ? { ...s, image: { url: imageUrl, fit: 'cover', positionX: 0.5, positionY: 0.5 } }
+            ? { ...s, image: { url: imageUrl, path: imagePath, fit: 'cover', positionX: 0.5, positionY: 0.5 } }
             : s
         ),
       },

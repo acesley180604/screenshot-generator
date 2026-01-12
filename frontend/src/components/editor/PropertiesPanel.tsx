@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Palette, Type, Smartphone, Plus, Trash2, ChevronDown, Award } from "lucide-react";
+import { Palette, Type, Smartphone, Plus, Trash2, ChevronDown, Award, Link2 } from "lucide-react";
 import { useEditorStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,12 +24,37 @@ const DEVICE_MODELS = [
   { id: "ipad-12.9", name: "iPad Pro", size: "12.9\"" },
 ];
 
-const DEVICE_COLORS = [
-  { id: "natural-titanium", name: "Natural Titanium", hex: "#8A8A8F" },
-  { id: "blue-titanium", name: "Blue Titanium", hex: "#3C4C5C" },
-  { id: "white-titanium", name: "White Titanium", hex: "#F5F5F0" },
-  { id: "black-titanium", name: "Black Titanium", hex: "#2E2E30" },
-  { id: "space-black", name: "Space Black", hex: "#1F1F1F" },
+// iPhone 16 Pro Colors
+const DEVICE_COLORS_PRO = [
+  { id: "desert-titanium", name: "Desert Titanium", hex: "#C4A77D", frameColor: "#8B7355", category: "pro" },
+  { id: "natural-titanium", name: "Natural Titanium", hex: "#A8A9AD", frameColor: "#6E6E73", category: "pro" },
+  { id: "white-titanium", name: "White Titanium", hex: "#F5F5F0", frameColor: "#D1D1D1", category: "pro" },
+  { id: "black-titanium", name: "Black Titanium", hex: "#3B3B3D", frameColor: "#1D1D1F", category: "pro" },
+];
+
+// iPhone 16 Standard Colors
+const DEVICE_COLORS_STANDARD = [
+  { id: "ultramarine", name: "Ultramarine", hex: "#8585FF", frameColor: "#5454CD", category: "standard" },
+  { id: "teal", name: "Teal", hex: "#54B4B4", frameColor: "#3A8080", category: "standard" },
+  { id: "pink", name: "Pink", hex: "#F5A5C4", frameColor: "#C48098", category: "standard" },
+  { id: "white", name: "White", hex: "#F5F5F7", frameColor: "#E0E0E2", category: "standard" },
+  { id: "black", name: "Black", hex: "#2E2E30", frameColor: "#1A1A1C", category: "standard" },
+];
+
+// iPhone 15 Colors (for backwards compatibility)
+const DEVICE_COLORS_LEGACY = [
+  { id: "blue-titanium", name: "Blue Titanium", hex: "#3C4C5C", frameColor: "#2A3642", category: "legacy" },
+  { id: "space-black", name: "Space Black", hex: "#1F1F1F", frameColor: "#0D0D0D", category: "legacy" },
+  { id: "silver", name: "Silver", hex: "#E3E4E6", frameColor: "#B0B1B3", category: "legacy" },
+  { id: "gold", name: "Gold", hex: "#F4E8CE", frameColor: "#C1B59C", category: "legacy" },
+  { id: "deep-purple", name: "Deep Purple", hex: "#4B4453", frameColor: "#332D38", category: "legacy" },
+];
+
+// Combined for easy access
+const ALL_DEVICE_COLORS = [
+  ...DEVICE_COLORS_PRO,
+  ...DEVICE_COLORS_STANDARD,
+  ...DEVICE_COLORS_LEGACY,
 ];
 
 const DEVICE_STYLES: { id: "realistic" | "clay" | "flat" | "none"; name: string }[] = [
@@ -240,6 +265,107 @@ const BACKGROUND_TYPES = [
   { id: "mesh", name: "Mesh" },
   { id: "glassmorphism", name: "Glass" },
   { id: "blobs", name: "Blobs" },
+  { id: "pattern", name: "Pattern" },
+];
+
+// Pattern presets for backgrounds
+const PATTERN_PRESETS = [
+  {
+    name: "Dots",
+    type: "dots" as const,
+    color: "#ffffff",
+    backgroundColor: "#1a1a2e",
+    size: 20,
+    opacity: 0.15,
+  },
+  {
+    name: "Grid",
+    type: "grid" as const,
+    color: "#ffffff",
+    backgroundColor: "#0D0D1A",
+    size: 30,
+    opacity: 0.1,
+  },
+  {
+    name: "Lines",
+    type: "lines" as const,
+    color: "#00D4FF",
+    backgroundColor: "#0D0D1A",
+    size: 40,
+    opacity: 0.1,
+  },
+  {
+    name: "Diagonal",
+    type: "diagonal-lines" as const,
+    color: "#FF6B6B",
+    backgroundColor: "#1a1a2e",
+    size: 20,
+    opacity: 0.15,
+  },
+  {
+    name: "Cross",
+    type: "cross" as const,
+    color: "#ffffff",
+    backgroundColor: "#16213e",
+    size: 25,
+    opacity: 0.12,
+  },
+  {
+    name: "Waves",
+    type: "waves" as const,
+    color: "#00FF88",
+    backgroundColor: "#0D0D1A",
+    size: 60,
+    opacity: 0.15,
+  },
+  {
+    name: "Circles",
+    type: "circles" as const,
+    color: "#8E2DE2",
+    backgroundColor: "#0F0F23",
+    size: 50,
+    opacity: 0.12,
+  },
+  {
+    name: "Diamonds",
+    type: "diamonds" as const,
+    color: "#FFD700",
+    backgroundColor: "#1a1a2e",
+    size: 30,
+    opacity: 0.1,
+  },
+  {
+    name: "Triangles",
+    type: "triangles" as const,
+    color: "#FF00FF",
+    backgroundColor: "#0A0A0F",
+    size: 40,
+    opacity: 0.12,
+  },
+  {
+    name: "Hexagons",
+    type: "hexagons" as const,
+    color: "#00FFFF",
+    backgroundColor: "#0D0D1A",
+    size: 50,
+    opacity: 0.1,
+  },
+  {
+    name: "Checker",
+    type: "checkerboard" as const,
+    color: "#2c2c2e",
+    backgroundColor: "#1c1c1e",
+    size: 30,
+    opacity: 0.5,
+  },
+  {
+    name: "Zigzag",
+    type: "zigzag" as const,
+    color: "#FF6B6B",
+    backgroundColor: "#0D0D1A",
+    size: 30,
+    opacity: 0.15,
+  },
 ];
 
 // Modern font families for app screenshots
@@ -267,6 +393,44 @@ const FONT_WEIGHTS = [
   { value: 800, name: "Extra Bold" },
   { value: 900, name: "Black" },
 ];
+
+// Helper function to generate SVG pattern for preview and canvas
+function getPatternPreviewStyle(type: string, color: string, opacity: number): string {
+  const hex = color.replace('#', '');
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+  const rgba = `rgba(${r},${g},${b},${opacity})`;
+
+  switch (type) {
+    case 'dots':
+      return `url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 20 20' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='10' cy='10' r='2' fill='${encodeURIComponent(rgba)}'/%3E%3C/svg%3E")`;
+    case 'grid':
+      return `url("data:image/svg+xml,%3Csvg width='30' height='30' viewBox='0 0 30 30' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0H0v30' fill='none' stroke='${encodeURIComponent(rgba)}' stroke-width='1'/%3E%3C/svg%3E")`;
+    case 'lines':
+      return `url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cline x1='0' y1='20' x2='40' y2='20' stroke='${encodeURIComponent(rgba)}' stroke-width='1'/%3E%3C/svg%3E")`;
+    case 'diagonal-lines':
+      return `url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 20 20' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 20L20 0M-5 5L5 -5M15 25L25 15' stroke='${encodeURIComponent(rgba)}' stroke-width='1'/%3E%3C/svg%3E")`;
+    case 'cross':
+      return `url("data:image/svg+xml,%3Csvg width='25' height='25' viewBox='0 0 25 25' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M12.5 0v25M0 12.5h25' stroke='${encodeURIComponent(rgba)}' stroke-width='1'/%3E%3C/svg%3E")`;
+    case 'waves':
+      return `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 30c15-10 30 10 60 0' fill='none' stroke='${encodeURIComponent(rgba)}' stroke-width='2'/%3E%3C/svg%3E")`;
+    case 'circles':
+      return `url("data:image/svg+xml,%3Csvg width='50' height='50' viewBox='0 0 50 50' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='25' cy='25' r='15' fill='none' stroke='${encodeURIComponent(rgba)}' stroke-width='1'/%3E%3C/svg%3E")`;
+    case 'diamonds':
+      return `url("data:image/svg+xml,%3Csvg width='30' height='30' viewBox='0 0 30 30' xmlns='http://www.w3.org/2000/svg'%3E%3Cpolygon points='15,0 30,15 15,30 0,15' fill='none' stroke='${encodeURIComponent(rgba)}' stroke-width='1'/%3E%3C/svg%3E")`;
+    case 'triangles':
+      return `url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpolygon points='20,5 35,35 5,35' fill='none' stroke='${encodeURIComponent(rgba)}' stroke-width='1'/%3E%3C/svg%3E")`;
+    case 'hexagons':
+      return `url("data:image/svg+xml,%3Csvg width='50' height='44' viewBox='0 0 50 44' xmlns='http://www.w3.org/2000/svg'%3E%3Cpolygon points='25,0 50,11 50,33 25,44 0,33 0,11' fill='none' stroke='${encodeURIComponent(rgba)}' stroke-width='1'/%3E%3C/svg%3E")`;
+    case 'checkerboard':
+      return `url("data:image/svg+xml,%3Csvg width='30' height='30' viewBox='0 0 30 30' xmlns='http://www.w3.org/2000/svg'%3E%3Crect x='0' y='0' width='15' height='15' fill='${encodeURIComponent(rgba)}'/%3E%3Crect x='15' y='15' width='15' height='15' fill='${encodeURIComponent(rgba)}'/%3E%3C/svg%3E")`;
+    case 'zigzag':
+      return `url("data:image/svg+xml,%3Csvg width='30' height='30' viewBox='0 0 30 30' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 15L15 0L30 15L15 30Z' fill='none' stroke='${encodeURIComponent(rgba)}' stroke-width='1'/%3E%3C/svg%3E")`;
+    default:
+      return 'none';
+  }
+}
 
 interface SectionProps {
   icon: React.ReactNode;
@@ -315,11 +479,23 @@ export function PropertiesPanel() {
     currentLocale,
     updateBackground,
     updateDevice,
+    updateDeviceAll,
     updateTextTranslation,
     updateTextStyle,
     addText,
     removeText,
   } = useEditorStore();
+
+  const [applyDeviceToAll, setApplyDeviceToAll] = React.useState(true);
+
+  // Helper to update device - applies to all if toggle is on
+  const handleDeviceUpdate = (updates: Parameters<typeof updateDevice>[1]) => {
+    if (applyDeviceToAll) {
+      updateDeviceAll(updates);
+    } else if (selectedScreenshotId) {
+      updateDevice(selectedScreenshotId, updates);
+    }
+  };
 
   const selectedScreenshot = project.screenshots.find(
     (s) => s.id === selectedScreenshotId
@@ -331,7 +507,7 @@ export function PropertiesPanel() {
 
   if (!selectedScreenshot) {
     return (
-      <div className="w-80 border-l border-[#2c2c2e] bg-[#1c1c1e] flex items-center justify-center">
+      <div className="w-64 min-w-[240px] border-l border-[#2c2c2e] bg-[#1c1c1e] flex items-center justify-center">
         <div className="text-center px-6">
           <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-[#2c2c2e] flex items-center justify-center">
             <Palette className="w-6 h-6 text-[#636366]" />
@@ -344,7 +520,7 @@ export function PropertiesPanel() {
   }
 
   return (
-    <div className="w-80 border-l border-[#2c2c2e] bg-[#1c1c1e] overflow-y-auto">
+    <div className="w-64 min-w-[240px] flex-shrink-0 border-l border-[#2c2c2e] bg-[#1c1c1e] overflow-y-auto">
       {/* Panel Header */}
       <div className="px-4 py-4 border-b border-[#2c2c2e] sticky top-0 bg-[#1c1c1e]/95 backdrop-blur-xl z-10">
         <h2 className="text-sm font-semibold text-[#f5f5f7]">Properties</h2>
@@ -537,6 +713,170 @@ export function PropertiesPanel() {
             </div>
           )}
 
+          {/* Pattern Backgrounds */}
+          {selectedScreenshot.template.background.type === "pattern" && (
+            <div className="space-y-3">
+              <div>
+                <Label className="text-[11px] font-medium text-[#8e8e93] uppercase tracking-wide">Pattern Presets</Label>
+                <div className="grid grid-cols-4 gap-2 mt-1.5">
+                  {PATTERN_PRESETS.map((preset, index) => (
+                    <button
+                      key={index}
+                      className={cn(
+                        "flex flex-col items-center gap-1 p-1.5 rounded-lg border-2 transition-all duration-200 hover:scale-105 active:scale-95",
+                        selectedScreenshot.template.background.patternConfig?.type === preset.type
+                          ? "border-[#0a84ff] bg-[#0a84ff]/10"
+                          : "border-transparent bg-[#2c2c2e] hover:border-[#0a84ff]"
+                      )}
+                      onClick={() =>
+                        updateBackground(selectedScreenshot.id, {
+                          type: "pattern",
+                          patternConfig: {
+                            type: preset.type,
+                            color: preset.color,
+                            backgroundColor: preset.backgroundColor,
+                            size: preset.size,
+                            opacity: preset.opacity,
+                          },
+                        })
+                      }
+                    >
+                      <div
+                        className="w-full aspect-square rounded-md overflow-hidden"
+                        style={{
+                          backgroundColor: preset.backgroundColor,
+                          backgroundImage: getPatternPreviewStyle(preset.type, preset.color, preset.opacity),
+                          backgroundSize: `${preset.size}px ${preset.size}px`,
+                        }}
+                      />
+                      <span className="text-[9px] text-[#a1a1a6]">{preset.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Pattern customization */}
+              {selectedScreenshot.template.background.patternConfig && (
+                <div className="space-y-3 pt-2 border-t border-[#2c2c2e]">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-[11px] font-medium text-[#8e8e93] uppercase tracking-wide">Pattern Color</Label>
+                      <div className="flex gap-2 mt-1">
+                        <input
+                          type="color"
+                          value={selectedScreenshot.template.background.patternConfig.color}
+                          onChange={(e) =>
+                            updateBackground(selectedScreenshot.id, {
+                              ...selectedScreenshot.template.background,
+                              patternConfig: {
+                                ...selectedScreenshot.template.background.patternConfig!,
+                                color: e.target.value,
+                              },
+                            })
+                          }
+                          className="w-8 h-8 rounded-lg cursor-pointer"
+                        />
+                        <Input
+                          value={selectedScreenshot.template.background.patternConfig.color}
+                          onChange={(e) =>
+                            updateBackground(selectedScreenshot.id, {
+                              ...selectedScreenshot.template.background,
+                              patternConfig: {
+                                ...selectedScreenshot.template.background.patternConfig!,
+                                color: e.target.value,
+                              },
+                            })
+                          }
+                          className="h-8 text-xs flex-1 font-mono"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-[11px] font-medium text-[#8e8e93] uppercase tracking-wide">Background</Label>
+                      <div className="flex gap-2 mt-1">
+                        <input
+                          type="color"
+                          value={selectedScreenshot.template.background.patternConfig.backgroundColor}
+                          onChange={(e) =>
+                            updateBackground(selectedScreenshot.id, {
+                              ...selectedScreenshot.template.background,
+                              patternConfig: {
+                                ...selectedScreenshot.template.background.patternConfig!,
+                                backgroundColor: e.target.value,
+                              },
+                            })
+                          }
+                          className="w-8 h-8 rounded-lg cursor-pointer"
+                        />
+                        <Input
+                          value={selectedScreenshot.template.background.patternConfig.backgroundColor}
+                          onChange={(e) =>
+                            updateBackground(selectedScreenshot.id, {
+                              ...selectedScreenshot.template.background,
+                              patternConfig: {
+                                ...selectedScreenshot.template.background.patternConfig!,
+                                backgroundColor: e.target.value,
+                              },
+                            })
+                          }
+                          className="h-8 text-xs flex-1 font-mono"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <Label className="text-[11px] font-medium text-[#8e8e93] uppercase tracking-wide">Pattern Size</Label>
+                      <span className="text-[11px] font-medium text-[#f5f5f7]">{selectedScreenshot.template.background.patternConfig.size}px</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="10"
+                      max="100"
+                      step="5"
+                      value={selectedScreenshot.template.background.patternConfig.size}
+                      onChange={(e) =>
+                        updateBackground(selectedScreenshot.id, {
+                          ...selectedScreenshot.template.background,
+                          patternConfig: {
+                            ...selectedScreenshot.template.background.patternConfig!,
+                            size: parseInt(e.target.value),
+                          },
+                        })
+                      }
+                      className="w-full mt-1"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <Label className="text-[11px] font-medium text-[#8e8e93] uppercase tracking-wide">Opacity</Label>
+                      <span className="text-[11px] font-medium text-[#f5f5f7]">{Math.round(selectedScreenshot.template.background.patternConfig.opacity * 100)}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.05"
+                      max="1"
+                      step="0.05"
+                      value={selectedScreenshot.template.background.patternConfig.opacity}
+                      onChange={(e) =>
+                        updateBackground(selectedScreenshot.id, {
+                          ...selectedScreenshot.template.background,
+                          patternConfig: {
+                            ...selectedScreenshot.template.background.patternConfig!,
+                            opacity: parseFloat(e.target.value),
+                          },
+                        })
+                      }
+                      className="w-full mt-1"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Noise/Grain Toggle - available for all types */}
           <label className="flex items-center gap-3 p-3 rounded-xl bg-[#2c2c2e] cursor-pointer hover:bg-[#3a3a3c] transition-colors duration-150">
             <input
@@ -564,13 +904,29 @@ export function PropertiesPanel() {
       {/* Device Section */}
       <Section icon={<Smartphone className="w-3.5 h-3.5" />} title="Device">
         <div className="space-y-4">
+          {/* Apply to All Toggle */}
+          <label className="flex items-center gap-3 p-3 rounded-xl bg-[#0a84ff]/10 border border-[#0a84ff]/30 cursor-pointer hover:bg-[#0a84ff]/15 transition-colors duration-150">
+            <input
+              type="checkbox"
+              checked={applyDeviceToAll}
+              onChange={(e) => setApplyDeviceToAll(e.target.checked)}
+              className="accent-[#0a84ff]"
+            />
+            <Link2 className={cn(
+              "w-4 h-4 transition-colors",
+              applyDeviceToAll ? "text-[#0a84ff]" : "text-[#8e8e93]"
+            )} />
+            <div className="flex-1">
+              <span className="text-[13px] font-medium text-[#f5f5f7]">Apply to All</span>
+              <p className="text-[11px] text-[#8e8e93]">Sync device settings across screenshots</p>
+            </div>
+          </label>
+
           <div>
             <Label className="text-[11px] font-medium text-[#8e8e93] uppercase tracking-wide">Model</Label>
             <Select
               value={selectedScreenshot.device.model}
-              onValueChange={(value) =>
-                updateDevice(selectedScreenshot.id, { model: value })
-              }
+              onValueChange={(value) => handleDeviceUpdate({ model: value })}
             >
               <SelectTrigger className="h-9 text-sm mt-1.5">
                 <SelectValue />
@@ -588,25 +944,103 @@ export function PropertiesPanel() {
             </Select>
           </div>
 
-          <div>
-            <Label className="text-[11px] font-medium text-[#8e8e93] uppercase tracking-wide">Color</Label>
-            <div className="flex gap-2 mt-1.5">
-              {DEVICE_COLORS.map((color) => (
-                <button
-                  key={color.id}
-                  className={cn(
-                    "w-8 h-8 rounded-full border-2 transition-all duration-200 hover:scale-110 active:scale-95",
-                    selectedScreenshot.device.color === color.id
-                      ? "border-[#0a84ff] ring-2 ring-[#0a84ff]/20"
-                      : "border-[#3a3a3c] hover:border-[#636366]"
-                  )}
-                  style={{ backgroundColor: color.hex }}
-                  onClick={() =>
-                    updateDevice(selectedScreenshot.id, { color: color.id })
+          <div className="space-y-3">
+            <div>
+              <Label className="text-[11px] font-medium text-[#8e8e93] uppercase tracking-wide">iPhone 16 Pro</Label>
+              <div className="flex gap-2 mt-1.5">
+                {DEVICE_COLORS_PRO.map((color) => (
+                  <button
+                    key={color.id}
+                    className={cn(
+                      "w-8 h-8 rounded-full border-2 transition-all duration-200 hover:scale-110 active:scale-95",
+                      selectedScreenshot.device.color === color.id
+                        ? "border-[#0a84ff] ring-2 ring-[#0a84ff]/20"
+                        : "border-[#3a3a3c] hover:border-[#636366]"
+                    )}
+                    style={{ backgroundColor: color.hex }}
+                    onClick={() =>
+                      handleDeviceUpdate({ color: color.id })
+                    }
+                    title={color.name}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-[11px] font-medium text-[#8e8e93] uppercase tracking-wide">iPhone 16</Label>
+              <div className="flex gap-2 mt-1.5">
+                {DEVICE_COLORS_STANDARD.map((color) => (
+                  <button
+                    key={color.id}
+                    className={cn(
+                      "w-8 h-8 rounded-full border-2 transition-all duration-200 hover:scale-110 active:scale-95",
+                      selectedScreenshot.device.color === color.id
+                        ? "border-[#0a84ff] ring-2 ring-[#0a84ff]/20"
+                        : "border-[#3a3a3c] hover:border-[#636366]"
+                    )}
+                    style={{ backgroundColor: color.hex }}
+                    onClick={() =>
+                      handleDeviceUpdate({ color: color.id })
+                    }
+                    title={color.name}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-[11px] font-medium text-[#8e8e93] uppercase tracking-wide">Classic Colors</Label>
+              <div className="flex gap-2 mt-1.5">
+                {DEVICE_COLORS_LEGACY.map((color) => (
+                  <button
+                    key={color.id}
+                    className={cn(
+                      "w-8 h-8 rounded-full border-2 transition-all duration-200 hover:scale-110 active:scale-95",
+                      selectedScreenshot.device.color === color.id
+                        ? "border-[#0a84ff] ring-2 ring-[#0a84ff]/20"
+                        : "border-[#3a3a3c] hover:border-[#636366]"
+                    )}
+                    style={{ backgroundColor: color.hex }}
+                    onClick={() =>
+                      handleDeviceUpdate({ color: color.id })
+                    }
+                    title={color.name}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-[11px] font-medium text-[#8e8e93] uppercase tracking-wide">Custom Color</Label>
+              <div className="flex gap-2 mt-1.5">
+                <div className="relative">
+                  <input
+                    type="color"
+                    value={
+                      selectedScreenshot.device.color.startsWith("#")
+                        ? selectedScreenshot.device.color
+                        : ALL_DEVICE_COLORS.find(c => c.id === selectedScreenshot.device.color)?.hex || "#1c1c1e"
+                    }
+                    onChange={(e) =>
+                      handleDeviceUpdate({ color: e.target.value })
+                    }
+                    className="w-10 h-9 rounded-lg cursor-pointer"
+                  />
+                </div>
+                <Input
+                  value={
+                    selectedScreenshot.device.color.startsWith("#")
+                      ? selectedScreenshot.device.color
+                      : ALL_DEVICE_COLORS.find(c => c.id === selectedScreenshot.device.color)?.hex || "#1c1c1e"
                   }
-                  title={color.name}
+                  onChange={(e) =>
+                    handleDeviceUpdate({ color: e.target.value })
+                  }
+                  placeholder="#000000"
+                  className="h-9 text-sm flex-1 font-mono"
                 />
-              ))}
+              </div>
             </div>
           </div>
 
@@ -616,7 +1050,7 @@ export function PropertiesPanel() {
               {DEVICE_STYLES.map((style) => (
                 <button
                   key={style.id}
-                  onClick={() => updateDevice(selectedScreenshot.id, { style: style.id })}
+                  onClick={() => handleDeviceUpdate({ style: style.id })}
                   className={cn(
                     "flex-1 py-1.5 text-[11px] font-medium rounded-md transition-all duration-200",
                     selectedScreenshot.device.style === style.id
@@ -642,7 +1076,7 @@ export function PropertiesPanel() {
               step="0.05"
               value={selectedScreenshot.device.scale}
               onChange={(e) =>
-                updateDevice(selectedScreenshot.id, { scale: parseFloat(e.target.value) })
+                handleDeviceUpdate({ scale: parseFloat(e.target.value) })
               }
               className="w-full mt-2"
             />
@@ -653,7 +1087,7 @@ export function PropertiesPanel() {
               type="checkbox"
               checked={selectedScreenshot.device.shadow}
               onChange={(e) =>
-                updateDevice(selectedScreenshot.id, { shadow: e.target.checked })
+                handleDeviceUpdate({ shadow: e.target.checked })
               }
             />
             <div>

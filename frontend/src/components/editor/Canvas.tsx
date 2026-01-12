@@ -3135,7 +3135,8 @@ export function Canvas() {
           const result = await uploadApi.upload(file);
           // For main device (index 0), use existing store method
           if (deviceIndex === 0) {
-            setScreenshotImage(selectedScreenshotId, result.url);
+            // Pass both url and path - path is needed for export
+            setScreenshotImage(selectedScreenshotId, result.url, result.path);
           }
           // Store additional device images locally
           setDeviceImages(prev => ({ ...prev, [deviceIndex]: result.url }));
@@ -3343,8 +3344,10 @@ export function Canvas() {
                 {/* Screenshot frame */}
                 <div
                   ref={isSelected ? canvasRef : undefined}
+                  data-screenshot-id={screenshot.id}
+                  data-screenshot-index={screenshotIndex}
                   className={cn(
-                    "relative bg-[#1c1c1e] rounded-[20px] overflow-hidden w-full",
+                    "relative bg-[#1c1c1e] rounded-[20px] overflow-hidden w-full screenshot-export-frame",
                     isSelected && "ring-2 ring-[#0a84ff] ring-offset-2 ring-offset-[#0a0a0a]"
                   )}
                   style={{

@@ -27,7 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import type { SocialProofType, SocialProofElement, FeatureCard, AvatarConfig } from "@/types";
+import type { SocialProofType, SocialProofElement, FeatureCard, AvatarConfig, BadgeOverlayType, BadgeOverlayElement, BadgeOverlayStyle } from "@/types";
 
 // University logo data - popular universities with SVG-friendly icons
 const UNIVERSITY_LOGOS = [
@@ -64,6 +64,55 @@ const PRESS_LOGOS = [
   { id: "inc", name: "Inc." },
   { id: "entrepreneur", name: "Entrepreneur" },
 ];
+
+// Badge overlay type configurations
+const BADGE_TYPES: {
+  type: BadgeOverlayType;
+  label: string;
+  defaultText: string;
+  defaultColor: string;
+}[] = [
+  { type: "new", label: "New!", defaultText: "NEW!", defaultColor: "#FF3B30" },
+  { type: "sale", label: "Sale", defaultText: "SALE", defaultColor: "#FF9500" },
+  { type: "featured", label: "#1 App", defaultText: "#1 APP", defaultColor: "#007AFF" },
+  { type: "editors-choice", label: "Editor's Choice", defaultText: "Editor's Choice", defaultColor: "#5856D6" },
+  { type: "trending", label: "Trending", defaultText: "TRENDING", defaultColor: "#FF2D55" },
+  { type: "best-seller", label: "Best Seller", defaultText: "BEST SELLER", defaultColor: "#34C759" },
+  { type: "free", label: "Free", defaultText: "FREE", defaultColor: "#30D158" },
+  { type: "premium", label: "Premium", defaultText: "PREMIUM", defaultColor: "#AF52DE" },
+  { type: "custom", label: "Custom", defaultText: "CUSTOM", defaultColor: "#8E8E93" },
+];
+
+// Badge style options
+const BADGE_STYLES: { value: BadgeOverlayStyle; label: string }[] = [
+  { value: "pill", label: "Pill" },
+  { value: "ribbon", label: "Ribbon" },
+  { value: "corner", label: "Corner" },
+  { value: "burst", label: "Starburst" },
+  { value: "tag", label: "Tag" },
+];
+
+// Default badge factory
+function createDefaultBadge(type: BadgeOverlayType): BadgeOverlayElement {
+  const config = BADGE_TYPES.find(b => b.type === type) || BADGE_TYPES[0];
+  return {
+    id: crypto.randomUUID(),
+    type,
+    enabled: true,
+    positionX: 0.85,
+    positionY: 0.12,
+    text: config.defaultText,
+    style: {
+      variant: "pill",
+      scale: 1,
+      rotation: type === "corner" ? 0 : (type === "ribbon" ? -5 : 0),
+      backgroundColor: config.defaultColor,
+      textColor: "#FFFFFF",
+      shadow: true,
+      pulse: false,
+    },
+  };
+}
 
 // Social proof type configurations
 const SOCIAL_PROOF_TYPES: {
@@ -249,6 +298,11 @@ export function SocialProofPanel() {
     removeSocialProof,
     toggleSocialProof,
     applySocialProofToAll,
+    addBadge,
+    updateBadge,
+    removeBadge,
+    toggleBadge,
+    applyBadgeToAll,
   } = useEditorStore();
 
   const selectedScreenshot = project.screenshots.find(
@@ -264,14 +318,66 @@ export function SocialProofPanel() {
   }
 
   const socialProofElements = selectedScreenshot.socialProof || [];
+  const badgeElements = selectedScreenshot.badges || [];
 
   const handleAddSocialProof = (type: SocialProofType) => {
     const element = createDefaultSocialProof(type);
     addSocialProof(selectedScreenshot.id, element);
   };
 
+  const handleAddBadge = (type: BadgeOverlayType) => {
+    const badge = createDefaultBadge(type);
+    addBadge(selectedScreenshot.id, badge);
+  };
+
   return (
     <div className="space-y-4">
+      {/* Badge Overlays Section */}
+      <div>
+        <Label className="text-[11px] font-semibold text-[#8e8e93] uppercase tracking-wide mb-3 block">
+          Badge Overlays
+        </Label>
+        <div className="flex flex-wrap gap-2">
+          {BADGE_TYPES.map(({ type, label, defaultColor }) => (
+            <button
+              key={type}
+              onClick={() => handleAddBadge(type)}
+              className="px-3 py-1.5 rounded-full text-xs font-semibold transition-all hover:scale-105"
+              style={{
+                backgroundColor: defaultColor,
+                color: "#FFFFFF",
+                boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Active Badges */}
+      {badgeElements.length > 0 && (
+        <div className="space-y-3">
+          <Label className="text-[11px] font-semibold text-[#8e8e93] uppercase tracking-wide">
+            Active Badges ({badgeElements.length})
+          </Label>
+          {badgeElements.map((badge) => (
+            <BadgeElementEditor
+              key={badge.id}
+              badge={badge}
+              screenshotId={selectedScreenshot.id}
+              onUpdate={updateBadge}
+              onRemove={removeBadge}
+              onToggle={toggleBadge}
+              onApplyToAll={applyBadgeToAll}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Divider */}
+      <div className="border-t border-[#2c2c2e] my-4" />
+
       {/* Add Social Proof Section */}
       <div>
         <Label className="text-[11px] font-semibold text-[#8e8e93] uppercase tracking-wide mb-3 block">
@@ -907,6 +1013,274 @@ function SocialProofElementEditor({
         size="sm"
         className="w-full h-7 text-[10px]"
         onClick={() => onApplyToAll(element)}
+      >
+        Apply to All Screenshots
+      </Button>
+    </div>
+  );
+}
+
+// Badge element editor component
+function BadgeElementEditor({
+  badge,
+  screenshotId,
+  onUpdate,
+  onRemove,
+  onToggle,
+  onApplyToAll,
+}: {
+  badge: BadgeOverlayElement;
+  screenshotId: string;
+  onUpdate: (screenshotId: string, badgeId: string, updates: Partial<BadgeOverlayElement>) => void;
+  onRemove: (screenshotId: string, badgeId: string) => void;
+  onToggle: (screenshotId: string, badgeId: string) => void;
+  onApplyToAll: (badge: BadgeOverlayElement) => void;
+}) {
+  const badgeConfig = BADGE_TYPES.find(b => b.type === badge.type);
+
+  return (
+    <div
+      className={cn(
+        "rounded-xl border p-3 space-y-3 transition-all",
+        badge.enabled
+          ? "bg-[#2c2c2e] border-[#3a3a3c]"
+          : "bg-[#1c1c1e] border-[#2c2c2e] opacity-60"
+      )}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div
+            className="w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-bold text-white"
+            style={{ backgroundColor: badge.style.backgroundColor }}
+          >
+            {badge.type === "new" ? "!" : badge.type[0].toUpperCase()}
+          </div>
+          <span className="text-sm font-medium text-[#f5f5f7]">
+            {badgeConfig?.label || "Badge"}
+          </span>
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => onToggle(screenshotId, badge.id)}
+            className="p-1.5 rounded-lg hover:bg-[#3a3a3c] transition-colors"
+          >
+            {badge.enabled ? (
+              <Eye className="w-4 h-4 text-[#30d158]" />
+            ) : (
+              <EyeOff className="w-4 h-4 text-[#8e8e93]" />
+            )}
+          </button>
+          <button
+            onClick={() => onRemove(screenshotId, badge.id)}
+            className="p-1.5 rounded-lg hover:bg-[#ff453a]/20 transition-colors"
+          >
+            <Trash2 className="w-4 h-4 text-[#ff453a]" />
+          </button>
+        </div>
+      </div>
+
+      {/* Badge text */}
+      <div>
+        <Label className="text-[10px] text-[#8e8e93]">Text</Label>
+        <Input
+          value={badge.text || ""}
+          onChange={(e) =>
+            onUpdate(screenshotId, badge.id, { text: e.target.value })
+          }
+          placeholder="Badge text..."
+          className="h-8 text-xs"
+        />
+      </div>
+
+      {/* Badge subtext */}
+      <div>
+        <Label className="text-[10px] text-[#8e8e93]">Subtext (optional)</Label>
+        <Input
+          value={badge.subtext || ""}
+          onChange={(e) =>
+            onUpdate(screenshotId, badge.id, { subtext: e.target.value || undefined })
+          }
+          placeholder="e.g., 50% OFF"
+          className="h-8 text-xs"
+        />
+      </div>
+
+      {/* Style selector */}
+      <div>
+        <Label className="text-[10px] text-[#8e8e93]">Style</Label>
+        <Select
+          value={badge.style.variant}
+          onValueChange={(value) =>
+            onUpdate(screenshotId, badge.id, {
+              style: { ...badge.style, variant: value as BadgeOverlayStyle },
+            })
+          }
+        >
+          <SelectTrigger className="h-8 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {BADGE_STYLES.map(({ value, label }) => (
+              <SelectItem key={value} value={value}>
+                {label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Colors */}
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <Label className="text-[10px] text-[#8e8e93]">Background</Label>
+          <div className="flex gap-2 items-center">
+            <input
+              type="color"
+              value={badge.style.backgroundColor}
+              onChange={(e) =>
+                onUpdate(screenshotId, badge.id, {
+                  style: { ...badge.style, backgroundColor: e.target.value },
+                })
+              }
+              className="w-8 h-8 rounded cursor-pointer border-0"
+            />
+            <Input
+              value={badge.style.backgroundColor}
+              onChange={(e) =>
+                onUpdate(screenshotId, badge.id, {
+                  style: { ...badge.style, backgroundColor: e.target.value },
+                })
+              }
+              className="h-8 text-xs flex-1"
+            />
+          </div>
+        </div>
+        <div>
+          <Label className="text-[10px] text-[#8e8e93]">Text Color</Label>
+          <div className="flex gap-2 items-center">
+            <input
+              type="color"
+              value={badge.style.textColor}
+              onChange={(e) =>
+                onUpdate(screenshotId, badge.id, {
+                  style: { ...badge.style, textColor: e.target.value },
+                })
+              }
+              className="w-8 h-8 rounded cursor-pointer border-0"
+            />
+            <Input
+              value={badge.style.textColor}
+              onChange={(e) =>
+                onUpdate(screenshotId, badge.id, {
+                  style: { ...badge.style, textColor: e.target.value },
+                })
+              }
+              className="h-8 text-xs flex-1"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Position and rotation */}
+      <div className="grid grid-cols-3 gap-2">
+        <div>
+          <Label className="text-[10px] text-[#8e8e93]">Position X</Label>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.01"
+            value={badge.positionX}
+            onChange={(e) =>
+              onUpdate(screenshotId, badge.id, {
+                positionX: parseFloat(e.target.value),
+              })
+            }
+            className="w-full h-1.5 bg-[#3a3a3c] rounded-full appearance-none cursor-pointer"
+          />
+        </div>
+        <div>
+          <Label className="text-[10px] text-[#8e8e93]">Position Y</Label>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.01"
+            value={badge.positionY}
+            onChange={(e) =>
+              onUpdate(screenshotId, badge.id, {
+                positionY: parseFloat(e.target.value),
+              })
+            }
+            className="w-full h-1.5 bg-[#3a3a3c] rounded-full appearance-none cursor-pointer"
+          />
+        </div>
+        <div>
+          <Label className="text-[10px] text-[#8e8e93]">Rotation</Label>
+          <input
+            type="range"
+            min="-45"
+            max="45"
+            step="1"
+            value={badge.style.rotation}
+            onChange={(e) =>
+              onUpdate(screenshotId, badge.id, {
+                style: { ...badge.style, rotation: parseInt(e.target.value) },
+              })
+            }
+            className="w-full h-1.5 bg-[#3a3a3c] rounded-full appearance-none cursor-pointer"
+          />
+        </div>
+      </div>
+
+      {/* Scale and shadow */}
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <Label className="text-[10px] text-[#8e8e93]">Scale</Label>
+          <input
+            type="range"
+            min="0.5"
+            max="2"
+            step="0.1"
+            value={badge.style.scale}
+            onChange={(e) =>
+              onUpdate(screenshotId, badge.id, {
+                style: { ...badge.style, scale: parseFloat(e.target.value) },
+              })
+            }
+            className="w-full h-1.5 bg-[#3a3a3c] rounded-full appearance-none cursor-pointer"
+          />
+        </div>
+        <div className="flex items-center justify-between pt-4">
+          <Label className="text-[10px] text-[#8e8e93]">Shadow</Label>
+          <button
+            onClick={() =>
+              onUpdate(screenshotId, badge.id, {
+                style: { ...badge.style, shadow: !badge.style.shadow },
+              })
+            }
+            className={cn(
+              "w-10 h-5 rounded-full transition-colors relative",
+              badge.style.shadow ? "bg-[#30d158]" : "bg-[#3a3a3c]"
+            )}
+          >
+            <div
+              className={cn(
+                "w-4 h-4 rounded-full bg-white absolute top-0.5 transition-all",
+                badge.style.shadow ? "right-0.5" : "left-0.5"
+              )}
+            />
+          </button>
+        </div>
+      </div>
+
+      {/* Apply to all button */}
+      <Button
+        variant="outline"
+        size="sm"
+        className="w-full h-7 text-[10px]"
+        onClick={() => onApplyToAll(badge)}
       >
         Apply to All Screenshots
       </Button>

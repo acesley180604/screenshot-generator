@@ -288,6 +288,7 @@ export interface DeviceConfig {
 // Image configuration
 export interface ImageConfig {
   url: string;
+  path?: string; // Server-side file path for export
   fit: 'contain' | 'cover' | 'fill';
   positionX: number;
   positionY: number;

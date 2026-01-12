@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import { Download, Loader2, Check, AlertCircle, Smartphone, Globe, FileImage, Sparkles } from "lucide-react";
+import JSZip from "jszip";
 import { useEditorStore } from "@/lib/store";
-import { generateApi } from "@/lib/api";
+import { exportScreenshotAsBlob } from "@/lib/canvas-export";
 import {
   Dialog,
   DialogContent,
@@ -18,21 +19,21 @@ import { cn } from "@/lib/utils";
 
 const DEVICE_OPTIONS = [
   // iPhone - Required sizes
-  { id: "iphone-6.9", name: "iPhone 16 Pro Max", size: "1320x2868", required: true, category: "iphone" },
-  { id: "iphone-6.7", name: "iPhone 15 Pro Max", size: "1290x2796", required: true, category: "iphone" },
-  { id: "iphone-6.5", name: "iPhone 14 Plus", size: "1284x2778", required: false, category: "iphone" },
-  { id: "iphone-6.1", name: "iPhone 15", size: "1179x2556", required: false, category: "iphone" },
-  { id: "iphone-5.5", name: "iPhone 8 Plus", size: "1242x2208", required: false, category: "iphone" },
+  { id: "iphone-6.9", name: "iPhone 16 Pro Max", size: "1320x2868", width: 1320, height: 2868, required: true, category: "iphone" },
+  { id: "iphone-6.7", name: "iPhone 15 Pro Max", size: "1290x2796", width: 1290, height: 2796, required: true, category: "iphone" },
+  { id: "iphone-6.5", name: "iPhone 14 Plus", size: "1284x2778", width: 1284, height: 2778, required: false, category: "iphone" },
+  { id: "iphone-6.1", name: "iPhone 15", size: "1179x2556", width: 1179, height: 2556, required: false, category: "iphone" },
+  { id: "iphone-5.5", name: "iPhone 8 Plus", size: "1242x2208", width: 1242, height: 2208, required: false, category: "iphone" },
   // iPad - Required sizes
-  { id: "ipad-13", name: "iPad Pro 13\"", size: "2064x2752", required: true, category: "ipad" },
-  { id: "ipad-12.9", name: "iPad Pro 12.9\"", size: "2048x2732", required: false, category: "ipad" },
-  { id: "ipad-11", name: "iPad Pro 11\"", size: "1668x2388", required: false, category: "ipad" },
+  { id: "ipad-13", name: "iPad Pro 13\"", size: "2064x2752", width: 2064, height: 2752, required: true, category: "ipad" },
+  { id: "ipad-12.9", name: "iPad Pro 12.9\"", size: "2048x2732", width: 2048, height: 2732, required: false, category: "ipad" },
+  { id: "ipad-11", name: "iPad Pro 11\"", size: "1668x2388", width: 1668, height: 2388, required: false, category: "ipad" },
   // Apple Watch
-  { id: "watch-ultra", name: "Apple Watch Ultra", size: "422x514", required: false, category: "watch" },
-  { id: "watch-series-9", name: "Apple Watch Series 9", size: "410x502", required: false, category: "watch" },
+  { id: "watch-ultra", name: "Apple Watch Ultra", size: "422x514", width: 422, height: 514, required: false, category: "watch" },
+  { id: "watch-series-9", name: "Apple Watch Series 9", size: "410x502", width: 410, height: 502, required: false, category: "watch" },
   // Mac
-  { id: "mac-16", name: "MacBook Pro 16\"", size: "2880x1800", required: false, category: "mac" },
-  { id: "mac-14", name: "MacBook Pro 14\"", size: "2560x1600", required: false, category: "mac" },
+  { id: "mac-16", name: "MacBook Pro 16\"", size: "2880x1800", width: 2880, height: 1800, required: false, category: "mac" },
+  { id: "mac-14", name: "MacBook Pro 14\"", size: "2560x1600", width: 2560, height: 1600, required: false, category: "mac" },
 ];
 
 const REQUIRED_DEVICES = DEVICE_OPTIONS.filter(d => d.required).map(d => d.id);
@@ -60,8 +61,10 @@ export function ExportDialog() {
   } = useEditorStore();
 
   const [isExporting, setIsExporting] = useState(false);
-  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+  const [exportProgress, setExportProgress] = useState({ current: 0, total: 0, status: "" });
+  const [downloadReady, setDownloadReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [zipBlob, setZipBlob] = useState<Blob | null>(null);
 
   const toggleDevice = (deviceId: string) => {
     const newDevices = exportConfig.devices.includes(deviceId)
@@ -91,12 +94,10 @@ export function ExportDialog() {
     const allSelected = categoryDevices.every(id => currentDevices.has(id));
 
     if (allSelected) {
-      // Deselect all in category
       updateExportConfig({
         devices: exportConfig.devices.filter(id => !categoryDevices.includes(id))
       });
     } else {
-      // Select all in category
       updateExportConfig({
         devices: [...new Set([...exportConfig.devices, ...categoryDevices])]
       });
@@ -115,90 +116,84 @@ export function ExportDialog() {
     );
   };
 
-  const handleExport = async () => {
+  const handleExport = useCallback(async () => {
     setIsExporting(true);
     setError(null);
-    setDownloadUrl(null);
+    setDownloadReady(false);
+    setZipBlob(null);
+
+    const total = exportConfig.devices.length * exportConfig.locales.length * project.screenshots.length;
+    let current = 0;
 
     try {
-      const apiProject = {
-        id: project.id,
-        name: project.name,
-        screenshots: project.screenshots.map((s) => ({
-          id: s.id,
-          order: s.order,
-          template: {
-            id: s.template.id,
-            name: s.template.name,
-            background: s.template.background,
-            text_position: s.template.textPosition,
-            device_layout: s.template.deviceLayout,
-          },
-          device: {
-            model: s.device.model,
-            color: s.device.color,
-            style: s.device.style,
-            scale: s.device.scale,
-            position_x: s.device.positionX,
-            position_y: s.device.positionY,
-            shadow: s.device.shadow,
-            shadow_blur: s.device.shadowBlur,
-            shadow_opacity: s.device.shadowOpacity,
-          },
-          image: s.image ? { url: s.image.url, fit: s.image.fit } : null,
-          texts: s.texts.map((t) => ({
-            id: t.id,
-            type: t.type,
-            translations: t.translations,
-            style: {
-              font_family: t.style.fontFamily,
-              font_size: t.style.fontSize,
-              font_weight: t.style.fontWeight,
-              color: t.style.color,
-              alignment: t.style.alignment,
-            },
-            position_y: t.positionY,
-          })),
-        })),
-        locales: project.locales,
-        default_locale: project.defaultLocale,
-      };
+      const zip = new JSZip();
 
-      const apiConfig = {
-        devices: exportConfig.devices,
-        locales: exportConfig.locales,
-        format: exportConfig.format,
-        quality: exportConfig.quality,
-        naming_pattern: exportConfig.namingPattern,
-      };
+      for (const locale of exportConfig.locales) {
+        for (const deviceId of exportConfig.devices) {
+          const deviceSpec = DEVICE_OPTIONS.find(d => d.id === deviceId);
+          if (!deviceSpec) continue;
 
-      const result = await generateApi.export(apiProject, apiConfig);
+          for (let idx = 0; idx < project.screenshots.length; idx++) {
+            const screenshot = project.screenshots[idx];
+            current++;
+            setExportProgress({
+              current,
+              total,
+              status: `Exporting ${locale}/${deviceId}/${idx + 1}...`,
+            });
 
-      const pollStatus = async () => {
-        const status = await generateApi.getStatus(result.job_id);
-        if (status.status === "completed" && status.download_url) {
-          setDownloadUrl(generateApi.download(result.job_id));
-          setIsExporting(false);
-        } else if (status.status === "failed") {
-          setError(status.error || "Export failed");
-          setIsExporting(false);
-        } else {
-          setTimeout(pollStatus, 1000);
+            // Allow UI to update
+            await new Promise(r => setTimeout(r, 50));
+
+            try {
+              // Use pure Canvas API to render the screenshot
+              const blob = await exportScreenshotAsBlob(
+                screenshot,
+                locale,
+                deviceSpec.width,
+                deviceSpec.height,
+                exportConfig.format,
+                exportConfig.quality
+              );
+
+              // Add to ZIP
+              const filename = exportConfig.namingPattern
+                .replace("{locale}", locale)
+                .replace("{device}", deviceId)
+                .replace("{index}", String(idx + 1));
+              zip.file(`${filename}.${exportConfig.format}`, blob);
+            } catch (err) {
+              console.error(`Failed to export screenshot ${screenshot.id}:`, err);
+            }
+          }
         }
-      };
+      }
 
-      pollStatus();
+      setExportProgress({ current: total, total, status: "Creating ZIP file..." });
+      const zipData = await zip.generateAsync({ type: "blob" });
+      setZipBlob(zipData);
+      setDownloadReady(true);
+      setIsExporting(false);
     } catch (err: any) {
+      console.error("Export failed:", err);
       setError(err.message || "Export failed");
       setIsExporting(false);
     }
-  };
+  }, [project, exportConfig]);
 
   const handleDownload = () => {
-    if (downloadUrl) {
-      window.open(downloadUrl, "_blank");
+    if (zipBlob) {
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${project.name || "screenshots"}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
       setShowExportDialog(false);
-      setDownloadUrl(null);
+      setDownloadReady(false);
+      setZipBlob(null);
     }
   };
 
@@ -410,6 +405,25 @@ export function ExportDialog() {
             </div>
           </div>
 
+          {/* Progress */}
+          {isExporting && (
+            <div className="rounded-xl bg-[#2c2c2e] p-4 border border-[#3a3a3c]">
+              <div className="flex items-center gap-3 mb-2">
+                <Loader2 className="w-4 h-4 animate-spin text-[#0a84ff]" />
+                <span className="text-sm text-[#f5f5f7]">{exportProgress.status}</span>
+              </div>
+              <div className="w-full bg-[#3a3a3c] rounded-full h-2">
+                <div
+                  className="bg-[#0a84ff] h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${(exportProgress.current / exportProgress.total) * 100}%` }}
+                />
+              </div>
+              <p className="text-xs text-[#8e8e93] mt-2">
+                {exportProgress.current} of {exportProgress.total}
+              </p>
+            </div>
+          )}
+
           {/* Status Messages */}
           {error && (
             <div className="flex items-center gap-3 p-4 bg-[#ff453a]/10 border border-[#ff453a]/30 text-[#ff453a] rounded-xl animate-fadeIn">
@@ -418,7 +432,7 @@ export function ExportDialog() {
             </div>
           )}
 
-          {downloadUrl && (
+          {downloadReady && (
             <div className="flex items-center gap-3 p-4 bg-[#30d158]/10 border border-[#30d158]/30 text-[#30d158] rounded-xl animate-fadeIn">
               <Check className="w-5 h-5 flex-shrink-0" />
               <span className="text-sm font-medium">Export complete! Ready to download.</span>
@@ -434,7 +448,7 @@ export function ExportDialog() {
           >
             Cancel
           </Button>
-          {downloadUrl ? (
+          {downloadReady ? (
             <Button variant="premium" onClick={handleDownload} className="gap-2">
               <Download className="w-4 h-4" />
               Download ZIP
