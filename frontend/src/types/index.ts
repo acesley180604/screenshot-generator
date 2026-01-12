@@ -44,6 +44,31 @@ export interface NoiseConfig {
   monochrome: boolean;
 }
 
+// Pattern types
+export type PatternType =
+  | 'dots'
+  | 'grid'
+  | 'lines'
+  | 'diagonal-lines'
+  | 'cross'
+  | 'waves'
+  | 'circles'
+  | 'diamonds'
+  | 'triangles'
+  | 'hexagons'
+  | 'checkerboard'
+  | 'zigzag';
+
+// Pattern configuration
+export interface PatternConfig {
+  type: PatternType;
+  color: string;          // Pattern element color
+  backgroundColor: string; // Background color
+  size: number;           // Pattern size (10-100)
+  opacity: number;        // Pattern opacity (0-1)
+  rotation?: number;      // Pattern rotation in degrees
+}
+
 // Background configuration
 export interface BackgroundConfig {
   type: BackgroundType;
@@ -64,6 +89,9 @@ export interface BackgroundConfig {
   // Blobs background
   base_color?: string;
   blur?: number;
+
+  // Pattern background
+  patternConfig?: PatternConfig;
 
   // Noise/grain texture
   noise?: NoiseConfig;
@@ -123,6 +151,40 @@ export interface NotificationElement {
     opacity: number;
     blur?: number;        // Backdrop blur
     dark?: boolean;       // Dark mode
+  };
+}
+
+// Badge Overlay Types (marketing badges like "New!", "Sale", etc.)
+export type BadgeOverlayType =
+  | 'new'              // "New!" badge
+  | 'sale'             // "Sale" / discount badge
+  | 'featured'         // "#1 App" or "Featured"
+  | 'editors-choice'   // "Editor's Choice"
+  | 'trending'         // "Trending" badge
+  | 'best-seller'      // "Best Seller"
+  | 'free'             // "Free" badge
+  | 'premium'          // "Premium" badge
+  | 'custom';          // Custom text badge
+
+export type BadgeOverlayStyle = 'pill' | 'ribbon' | 'corner' | 'burst' | 'tag';
+
+export interface BadgeOverlayElement {
+  id: string;
+  type: BadgeOverlayType;
+  enabled: boolean;
+  positionX: number;      // 0-1 normalized
+  positionY: number;      // 0-1 normalized
+  text?: string;          // Custom text for 'custom' type or override
+  subtext?: string;       // Secondary text (e.g., "50% OFF")
+  style: {
+    variant: BadgeOverlayStyle;
+    scale: number;
+    rotation: number;     // Rotation in degrees
+    backgroundColor: string;
+    textColor: string;
+    borderColor?: string;
+    shadow?: boolean;
+    pulse?: boolean;      // Animated pulse effect indicator
   };
 }
 
@@ -250,6 +312,8 @@ export interface ScreenshotConfig {
   texts: LocalizedText[];
   socialProof?: SocialProofElement[];
   notifications?: NotificationElement[];
+  badges?: BadgeOverlayElement[];
+  layout?: string; // Layout preset ID (e.g., "single-center", "artsy-scatter", etc.)
 }
 
 // Project
@@ -338,6 +402,9 @@ export interface LayoutDevicePosition {
   rotation: number;
   zIndex: number;
   perspective?: boolean;
+  perspectiveAngle?: number;    // rotateY angle (-45 to 45)
+  perspectiveX?: number;        // rotateX angle (-30 to 30)
+  perspectiveDistance?: number; // perspective() value in px
   floatingShadow?: boolean;
   noFrame?: boolean;
   roundedCorners?: number;

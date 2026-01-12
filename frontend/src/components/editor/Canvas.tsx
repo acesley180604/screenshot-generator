@@ -7,24 +7,175 @@ import { Rnd } from "react-rnd";
 import { useEditorStore } from "@/lib/store";
 import { uploadApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import type { LayoutDevicePosition, SocialProofElement, NotificationElement } from "@/types";
+import type { LayoutDevicePosition, SocialProofElement, NotificationElement, ScreenshotConfig, BadgeOverlayElement } from "@/types";
 
-// Custom resize handle styles
-const resizeHandleStyle = {
+// ============================================
+// APP STORE SCREENSHOT DIMENSIONS
+// ============================================
+// iPhone 6.5" (required) - 1242 × 2688 pixels
+const SCREENSHOT_WIDTH = 1242;
+const SCREENSHOT_HEIGHT = 2688;
+const SCREENSHOT_ASPECT_RATIO = `${SCREENSHOT_WIDTH} / ${SCREENSHOT_HEIGHT}`;
+
+// ============================================
+// CANVA/FIGMA-STYLE UX CONSTANTS
+// ============================================
+
+// Smooth easing functions (Figma-style)
+const EASING = {
+  gentle: "cubic-bezier(0.4, 0, 0.2, 1)", // Material Design standard
+  spring: "cubic-bezier(0.34, 1.56, 0.64, 1)", // Bouncy spring effect
+  smooth: "cubic-bezier(0.25, 0.1, 0.25, 1)", // Smooth ease-in-out
+  snappy: "cubic-bezier(0.2, 0, 0, 1)", // Quick and responsive
+};
+
+// Transition durations
+const DURATION = {
+  instant: "0ms",
+  fast: "150ms",
+  normal: "200ms",
+  smooth: "300ms",
+  slow: "500ms",
+};
+
+// Custom resize handle styles - Figma/Canva inspired
+// Figma uses 8x8 white squares with 1px blue border
+const resizeHandleStyle: React.CSSProperties = {
   width: "10px",
   height: "10px",
-  background: "#0a84ff",
-  borderRadius: "50%",
-  border: "2px solid white",
-  boxShadow: "0 2px 4px rgba(0,0,0,0.3)",
+  background: "#ffffff",
+  borderRadius: "1px", // Figma uses slightly rounded corners
+  border: "1px solid #0a84ff",
+  boxShadow: "0 0 0 1px rgba(0,0,0,0.1), 0 2px 4px rgba(0,0,0,0.15)",
+  transition: `all ${DURATION.fast} ${EASING.gentle}`,
+  pointerEvents: "auto" as const,
 };
 
-const resizeHandleClasses = {
-  topLeft: { top: -5, left: -5, cursor: "nw-resize" },
-  topRight: { top: -5, right: -5, cursor: "ne-resize" },
-  bottomLeft: { bottom: -5, left: -5, cursor: "sw-resize" },
-  bottomRight: { bottom: -5, right: -5, cursor: "se-resize" },
+const resizeHandleHoverStyle: React.CSSProperties = {
+  ...resizeHandleStyle,
+  width: "12px",
+  height: "12px",
+  background: "#0a84ff",
+  border: "1px solid #ffffff",
+  boxShadow: "0 0 0 2px rgba(10,132,255,0.3), 0 2px 8px rgba(10,132,255,0.4)",
 };
+
+const resizeHandleActiveStyle: React.CSSProperties = {
+  ...resizeHandleHoverStyle,
+  transform: "scale(1.1)",
+  boxShadow: "0 0 0 3px rgba(10,132,255,0.4), 0 4px 12px rgba(10,132,255,0.5)",
+};
+
+// Corner handle positions - positioned exactly at corners
+const resizeHandleClasses: Record<string, React.CSSProperties> = {
+  topLeft: { top: -5, left: -5, cursor: "nwse-resize" },
+  topRight: { top: -5, right: -5, cursor: "nesw-resize" },
+  bottomLeft: { bottom: -5, left: -5, cursor: "nesw-resize" },
+  bottomRight: { bottom: -5, right: -5, cursor: "nwse-resize" },
+};
+
+// Edge handle styles for width/height only resize (like Figma)
+const edgeHandleStyle: React.CSSProperties = {
+  background: "transparent",
+  position: "absolute",
+  zIndex: 49,
+};
+
+const edgeHandlePositions: Record<string, React.CSSProperties> = {
+  top: { top: -4, left: "15%", right: "15%", height: "8px", cursor: "ns-resize" },
+  bottom: { bottom: -4, left: "15%", right: "15%", height: "8px", cursor: "ns-resize" },
+  left: { left: -4, top: "15%", bottom: "15%", width: "8px", cursor: "ew-resize" },
+  right: { right: -4, top: "15%", bottom: "15%", width: "8px", cursor: "ew-resize" },
+};
+
+// Selection styles
+const selectionStyle = {
+  outline: "2px solid #0a84ff",
+  outlineOffset: "2px",
+  boxShadow: "0 0 0 1px rgba(10,132,255,0.1), 0 4px 12px rgba(10,132,255,0.15)",
+};
+
+// Dragging styles (elevation effect like Canva)
+const draggingStyle = {
+  boxShadow: "0 12px 28px rgba(0,0,0,0.25), 0 8px 10px rgba(0,0,0,0.15)",
+  opacity: 0.95,
+  transform: "scale(1.02)",
+};
+
+// Snap guide configuration (Figma-style)
+const SNAP_THRESHOLD = 8; // pixels - distance to trigger snap
+const SNAP_GUIDE_COLOR = "#FF00D4"; // Magenta like Figma
+
+// Snap guide line component
+function SnapGuide({ type, position }: { type: 'horizontal' | 'vertical' | 'center-h' | 'center-v'; position: number }) {
+  const isCenter = type.includes('center');
+
+  if (type === 'horizontal' || type === 'center-h') {
+    return (
+      <div
+        className="absolute left-0 right-0 pointer-events-none z-[200]"
+        style={{
+          top: `${position}%`,
+          height: '1px',
+          background: isCenter
+            ? `linear-gradient(90deg, transparent 0%, ${SNAP_GUIDE_COLOR} 20%, ${SNAP_GUIDE_COLOR} 80%, transparent 100%)`
+            : SNAP_GUIDE_COLOR,
+          boxShadow: `0 0 4px ${SNAP_GUIDE_COLOR}`,
+          transition: `opacity ${DURATION.fast} ${EASING.gentle}`,
+        }}
+      />
+    );
+  }
+
+  return (
+    <div
+      className="absolute top-0 bottom-0 pointer-events-none z-[200]"
+      style={{
+        left: `${position}%`,
+        width: '1px',
+        background: isCenter
+          ? `linear-gradient(180deg, transparent 0%, ${SNAP_GUIDE_COLOR} 20%, ${SNAP_GUIDE_COLOR} 80%, transparent 100%)`
+          : SNAP_GUIDE_COLOR,
+        boxShadow: `0 0 4px ${SNAP_GUIDE_COLOR}`,
+        transition: `opacity ${DURATION.fast} ${EASING.gentle}`,
+      }}
+    />
+  );
+}
+
+// Snap guides overlay component
+interface SnapGuidesProps {
+  showCenterH?: boolean;
+  showCenterV?: boolean;
+  customGuides?: { type: 'horizontal' | 'vertical'; position: number }[];
+}
+
+function SnapGuidesOverlay({ showCenterH, showCenterV, customGuides = [] }: SnapGuidesProps) {
+  return (
+    <div className="absolute inset-0 pointer-events-none overflow-hidden">
+      {showCenterH && <SnapGuide type="center-h" position={50} />}
+      {showCenterV && <SnapGuide type="center-v" position={50} />}
+      {customGuides.map((guide, i) => (
+        <SnapGuide key={i} type={guide.type} position={guide.position} />
+      ))}
+    </div>
+  );
+}
+
+// Helper to check if value is near snap point
+function isNearSnap(value: number, snapPoint: number, threshold: number = SNAP_THRESHOLD / 100): boolean {
+  return Math.abs(value - snapPoint) < threshold;
+}
+
+// Get snap position if near a snap point
+function getSnapPosition(value: number, snapPoints: number[], threshold: number = SNAP_THRESHOLD / 100): number | null {
+  for (const point of snapPoints) {
+    if (isNearSnap(value, point, threshold)) {
+      return point;
+    }
+  }
+  return null;
+}
 
 // Font family mapping for CSS variables
 const FONT_FAMILY_MAP: Record<string, string> = {
@@ -44,6 +195,44 @@ const FONT_FAMILY_MAP: Record<string, string> = {
 // Helper to get font family CSS value
 function getFontFamily(fontFamily: string): string {
   return FONT_FAMILY_MAP[fontFamily] || FONT_FAMILY_MAP["Inter"];
+}
+
+// Helper function to generate SVG pattern for canvas
+function getPatternSVG(type: string, color: string, opacity: number): string {
+  const hex = color.replace('#', '');
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+  const rgba = `rgba(${r},${g},${b},${opacity})`;
+
+  switch (type) {
+    case 'dots':
+      return `url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 20 20' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='10' cy='10' r='2' fill='${encodeURIComponent(rgba)}'/%3E%3C/svg%3E")`;
+    case 'grid':
+      return `url("data:image/svg+xml,%3Csvg width='30' height='30' viewBox='0 0 30 30' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0H0v30' fill='none' stroke='${encodeURIComponent(rgba)}' stroke-width='1'/%3E%3C/svg%3E")`;
+    case 'lines':
+      return `url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cline x1='0' y1='20' x2='40' y2='20' stroke='${encodeURIComponent(rgba)}' stroke-width='1'/%3E%3C/svg%3E")`;
+    case 'diagonal-lines':
+      return `url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 20 20' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 20L20 0M-5 5L5 -5M15 25L25 15' stroke='${encodeURIComponent(rgba)}' stroke-width='1'/%3E%3C/svg%3E")`;
+    case 'cross':
+      return `url("data:image/svg+xml,%3Csvg width='25' height='25' viewBox='0 0 25 25' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M12.5 0v25M0 12.5h25' stroke='${encodeURIComponent(rgba)}' stroke-width='1'/%3E%3C/svg%3E")`;
+    case 'waves':
+      return `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 30c15-10 30 10 60 0' fill='none' stroke='${encodeURIComponent(rgba)}' stroke-width='2'/%3E%3C/svg%3E")`;
+    case 'circles':
+      return `url("data:image/svg+xml,%3Csvg width='50' height='50' viewBox='0 0 50 50' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='25' cy='25' r='15' fill='none' stroke='${encodeURIComponent(rgba)}' stroke-width='1'/%3E%3C/svg%3E")`;
+    case 'diamonds':
+      return `url("data:image/svg+xml,%3Csvg width='30' height='30' viewBox='0 0 30 30' xmlns='http://www.w3.org/2000/svg'%3E%3Cpolygon points='15,0 30,15 15,30 0,15' fill='none' stroke='${encodeURIComponent(rgba)}' stroke-width='1'/%3E%3C/svg%3E")`;
+    case 'triangles':
+      return `url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpolygon points='20,5 35,35 5,35' fill='none' stroke='${encodeURIComponent(rgba)}' stroke-width='1'/%3E%3C/svg%3E")`;
+    case 'hexagons':
+      return `url("data:image/svg+xml,%3Csvg width='50' height='44' viewBox='0 0 50 44' xmlns='http://www.w3.org/2000/svg'%3E%3Cpolygon points='25,0 50,11 50,33 25,44 0,33 0,11' fill='none' stroke='${encodeURIComponent(rgba)}' stroke-width='1'/%3E%3C/svg%3E")`;
+    case 'checkerboard':
+      return `url("data:image/svg+xml,%3Csvg width='30' height='30' viewBox='0 0 30 30' xmlns='http://www.w3.org/2000/svg'%3E%3Crect x='0' y='0' width='15' height='15' fill='${encodeURIComponent(rgba)}'/%3E%3Crect x='15' y='15' width='15' height='15' fill='${encodeURIComponent(rgba)}'/%3E%3C/svg%3E")`;
+    case 'zigzag':
+      return `url("data:image/svg+xml,%3Csvg width='30' height='30' viewBox='0 0 30 30' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 15L15 0L30 15L15 30Z' fill='none' stroke='${encodeURIComponent(rgba)}' stroke-width='1'/%3E%3C/svg%3E")`;
+    default:
+      return 'none';
+  }
 }
 
 // Available layouts for the canvas
@@ -82,6 +271,36 @@ const LAYOUTS: Record<string, { devices: LayoutDevicePosition[], name: string, i
     name: "Float",
     icon: "◈",
     devices: [{ position: { x: 0.5, y: 0.52 }, scale: 0.75, rotation: 5, zIndex: 1, perspective: true, floatingShadow: true }]
+  },
+  "isometric-left": {
+    name: "Iso Left",
+    icon: "◿",
+    devices: [{ position: { x: 0.5, y: 0.55 }, scale: 0.75, rotation: 0, zIndex: 1, perspective: true, perspectiveAngle: -25, perspectiveX: 5, perspectiveDistance: 800 }]
+  },
+  "isometric-right": {
+    name: "Iso Right",
+    icon: "◺",
+    devices: [{ position: { x: 0.5, y: 0.55 }, scale: 0.75, rotation: 0, zIndex: 1, perspective: true, perspectiveAngle: 25, perspectiveX: 5, perspectiveDistance: 800 }]
+  },
+  "dramatic-left": {
+    name: "Drama L",
+    icon: "◸",
+    devices: [{ position: { x: 0.55, y: 0.55 }, scale: 0.7, rotation: -3, zIndex: 1, perspective: true, perspectiveAngle: -35, perspectiveX: 10, perspectiveDistance: 600 }]
+  },
+  "dramatic-right": {
+    name: "Drama R",
+    icon: "◹",
+    devices: [{ position: { x: 0.45, y: 0.55 }, scale: 0.7, rotation: 3, zIndex: 1, perspective: true, perspectiveAngle: 35, perspectiveX: 10, perspectiveDistance: 600 }]
+  },
+  "top-down": {
+    name: "Top Down",
+    icon: "▽",
+    devices: [{ position: { x: 0.5, y: 0.55 }, scale: 0.8, rotation: 0, zIndex: 1, perspective: true, perspectiveAngle: 0, perspectiveX: 25, perspectiveDistance: 700 }]
+  },
+  "showcase-3d": {
+    name: "Showcase",
+    icon: "◇",
+    devices: [{ position: { x: 0.5, y: 0.52 }, scale: 0.72, rotation: -5, zIndex: 1, perspective: true, perspectiveAngle: 15, perspectiveX: 8, perspectiveDistance: 900, floatingShadow: true }]
   },
   "duo-overlap": {
     name: "Overlap",
@@ -134,11 +353,162 @@ const LAYOUTS: Record<string, { devices: LayoutDevicePosition[], name: string, i
     name: "Peek Down",
     icon: "△",
     devices: [{ position: { x: 0.5, y: 0.25 }, scale: 0.9, rotation: 0, zIndex: 1 }]
+  },
+  "left-edge": {
+    name: "Left Edge",
+    icon: "◧",
+    devices: [{ position: { x: 0.15, y: 0.55 }, scale: 0.75, rotation: 0, zIndex: 1 }]
+  },
+  "right-edge": {
+    name: "Right Edge",
+    icon: "◨",
+    devices: [{ position: { x: 0.85, y: 0.55 }, scale: 0.75, rotation: 0, zIndex: 1 }]
+  },
+  "left-edge-tilted": {
+    name: "Edge Tilt L",
+    icon: "◩",
+    devices: [{ position: { x: 0.18, y: 0.58 }, scale: 0.72, rotation: 8, zIndex: 1 }]
+  },
+  "right-edge-tilted": {
+    name: "Edge Tilt R",
+    icon: "◪",
+    devices: [{ position: { x: 0.82, y: 0.58 }, scale: 0.72, rotation: -8, zIndex: 1 }]
+  },
+  "corner-left": {
+    name: "Corner L",
+    icon: "◱",
+    devices: [{ position: { x: 0.22, y: 0.72 }, scale: 0.7, rotation: 12, zIndex: 1 }]
+  },
+  "corner-right": {
+    name: "Corner R",
+    icon: "◲",
+    devices: [{ position: { x: 0.78, y: 0.72 }, scale: 0.7, rotation: -12, zIndex: 1 }]
+  },
+  "dual-edge": {
+    name: "Dual Edge",
+    icon: "▥",
+    devices: [
+      { position: { x: 0.12, y: 0.6 }, scale: 0.55, rotation: 5, zIndex: 1 },
+      { position: { x: 0.88, y: 0.6 }, scale: 0.55, rotation: -5, zIndex: 1 }
+    ]
+  },
+  // ============================================
+  // APP STORE STYLE - Multi-device scattered layouts
+  // ============================================
+  "artsy-scatter": {
+    name: "Scatter",
+    icon: "✦",
+    devices: [
+      { position: { x: 0.15, y: 0.25 }, scale: 0.32, rotation: -15, zIndex: 1 },
+      { position: { x: 0.75, y: 0.18 }, scale: 0.28, rotation: 20, zIndex: 2 },
+      { position: { x: 0.35, y: 0.45 }, scale: 0.38, rotation: 5, zIndex: 3 },
+      { position: { x: 0.82, y: 0.55 }, scale: 0.35, rotation: -10, zIndex: 2 },
+      { position: { x: 0.22, y: 0.75 }, scale: 0.33, rotation: 12, zIndex: 1 },
+      { position: { x: 0.65, y: 0.78 }, scale: 0.30, rotation: -8, zIndex: 2 }
+    ]
+  },
+  "artsy-collage": {
+    name: "Collage",
+    icon: "❖",
+    devices: [
+      { position: { x: 0.25, y: 0.3 }, scale: 0.42, rotation: -12, zIndex: 2 },
+      { position: { x: 0.7, y: 0.25 }, scale: 0.38, rotation: 15, zIndex: 1 },
+      { position: { x: 0.45, y: 0.65 }, scale: 0.45, rotation: 3, zIndex: 3 },
+      { position: { x: 0.85, y: 0.7 }, scale: 0.35, rotation: -18, zIndex: 1 }
+    ]
+  },
+  "dmv-hero": {
+    name: "Hero Left",
+    icon: "◀",
+    devices: [
+      { position: { x: 0.28, y: 0.55 }, scale: 0.65, rotation: 0, zIndex: 3 },
+      { position: { x: 0.72, y: 0.35 }, scale: 0.35, rotation: 10, zIndex: 1 },
+      { position: { x: 0.85, y: 0.65 }, scale: 0.32, rotation: -5, zIndex: 2 }
+    ]
+  },
+  "crypto-trio": {
+    name: "Trio Row",
+    icon: "≡",
+    devices: [
+      { position: { x: 0.18, y: 0.55 }, scale: 0.5, rotation: -5, zIndex: 1 },
+      { position: { x: 0.5, y: 0.5 }, scale: 0.55, rotation: 0, zIndex: 2 },
+      { position: { x: 0.82, y: 0.55 }, scale: 0.5, rotation: 5, zIndex: 1 }
+    ]
+  },
+  "calendar-quad": {
+    name: "Quad",
+    icon: "▦",
+    devices: [
+      { position: { x: 0.2, y: 0.35 }, scale: 0.4, rotation: -8, zIndex: 1 },
+      { position: { x: 0.55, y: 0.3 }, scale: 0.42, rotation: 5, zIndex: 2 },
+      { position: { x: 0.35, y: 0.7 }, scale: 0.38, rotation: 3, zIndex: 2 },
+      { position: { x: 0.75, y: 0.65 }, scale: 0.4, rotation: -6, zIndex: 1 }
+    ]
+  },
+  "parenting-five": {
+    name: "Five Grid",
+    icon: "⬢",
+    devices: [
+      { position: { x: 0.15, y: 0.3 }, scale: 0.35, rotation: -10, zIndex: 1 },
+      { position: { x: 0.5, y: 0.25 }, scale: 0.4, rotation: 5, zIndex: 2 },
+      { position: { x: 0.85, y: 0.35 }, scale: 0.35, rotation: 12, zIndex: 1 },
+      { position: { x: 0.3, y: 0.7 }, scale: 0.38, rotation: -5, zIndex: 2 },
+      { position: { x: 0.7, y: 0.72 }, scale: 0.36, rotation: 8, zIndex: 1 }
+    ]
+  },
+  "showcase-single": {
+    name: "Showcase",
+    icon: "◉",
+    devices: [
+      { position: { x: 0.5, y: 0.58 }, scale: 0.68, rotation: 0, zIndex: 1 }
+    ]
+  },
+  "hero-right": {
+    name: "Hero Right",
+    icon: "▶",
+    devices: [
+      { position: { x: 0.72, y: 0.55 }, scale: 0.65, rotation: 0, zIndex: 3 },
+      { position: { x: 0.28, y: 0.35 }, scale: 0.35, rotation: -10, zIndex: 1 },
+      { position: { x: 0.15, y: 0.65 }, scale: 0.32, rotation: 5, zIndex: 2 }
+    ]
+  },
+  "diagonal-stack": {
+    name: "Diagonal",
+    icon: "⬔",
+    devices: [
+      { position: { x: 0.25, y: 0.7 }, scale: 0.45, rotation: -12, zIndex: 1 },
+      { position: { x: 0.45, y: 0.5 }, scale: 0.5, rotation: -5, zIndex: 2 },
+      { position: { x: 0.7, y: 0.35 }, scale: 0.48, rotation: 3, zIndex: 3 }
+    ]
+  },
+  "floating-duo": {
+    name: "Float Duo",
+    icon: "◈",
+    devices: [
+      { position: { x: 0.35, y: 0.45 }, scale: 0.52, rotation: -8, zIndex: 1, floatingShadow: true },
+      { position: { x: 0.68, y: 0.58 }, scale: 0.55, rotation: 6, zIndex: 2, floatingShadow: true }
+    ]
+  },
+  "edge-peek": {
+    name: "Edge Peek",
+    icon: "◧",
+    devices: [
+      { position: { x: 0.08, y: 0.5 }, scale: 0.55, rotation: 8, zIndex: 1 },
+      { position: { x: 0.55, y: 0.55 }, scale: 0.6, rotation: 0, zIndex: 2 }
+    ]
+  },
+  "cross-panel": {
+    name: "Cross",
+    icon: "⊞",
+    devices: [
+      { position: { x: 0.92, y: 0.55 }, scale: 0.65, rotation: -5, zIndex: 2 }
+    ]
   }
 };
 
 interface DeviceFrameProps {
   imageUrl?: string;
+  imageFit?: 'contain' | 'cover' | 'fill';
   position: LayoutDevicePosition;
   deviceColor: string;
   deviceStyle: string;
@@ -149,11 +519,13 @@ interface DeviceFrameProps {
   deviceIndex: number;
   isSelected?: boolean;
   onPositionChange?: (x: number, y: number) => void;
+  onScaleChange?: (scale: number) => void;
   canvasRef?: React.RefObject<HTMLDivElement | null>;
 }
 
 function DeviceFrame({
   imageUrl,
+  imageFit = 'contain', // Default to contain so image fits properly
   position,
   deviceColor,
   deviceStyle,
@@ -164,10 +536,84 @@ function DeviceFrame({
   deviceIndex,
   isSelected,
   onPositionChange,
+  onScaleChange,
   canvasRef
 }: DeviceFrameProps) {
   const [isDragging, setIsDragging] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
   const dragStartRef = useRef<{ x: number; y: number; posX: number; posY: number } | null>(null);
+
+  // Resize handle component for device frame
+  const DeviceResizeHandle = ({ corner }: { corner: 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight' }) => {
+    const [isHovered, setIsHovered] = useState(false);
+
+    const handleResize = (e: React.MouseEvent) => {
+      if (!onScaleChange) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setIsResizing(true);
+
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const startScale = position.scale;
+
+      const handleMouseMove = (moveE: MouseEvent) => {
+        const deltaX = moveE.clientX - startX;
+        const deltaY = moveE.clientY - startY;
+
+        // Calculate scale based on corner position
+        let delta = 0;
+        switch (corner) {
+          case 'bottomRight':
+            delta = (deltaX + deltaY) / 2;
+            break;
+          case 'topLeft':
+            delta = (-deltaX - deltaY) / 2;
+            break;
+          case 'topRight':
+            delta = (deltaX - deltaY) / 2;
+            break;
+          case 'bottomLeft':
+            delta = (-deltaX + deltaY) / 2;
+            break;
+        }
+
+        const scaleFactor = delta / 150; // Slower scaling for device
+        const newScale = Math.max(0.3, Math.min(1.5, startScale + scaleFactor));
+        onScaleChange(newScale);
+      };
+
+      const handleMouseUp = () => {
+        setIsResizing(false);
+        window.removeEventListener("mousemove", handleMouseMove);
+        window.removeEventListener("mouseup", handleMouseUp);
+      };
+
+      window.addEventListener("mousemove", handleMouseMove);
+      window.addEventListener("mouseup", handleMouseUp);
+    };
+
+    const positionStyles = resizeHandleClasses[corner];
+    return (
+      <div
+        className={cn(
+          "absolute z-50",
+          isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+        )}
+        style={{
+          ...(isHovered ? resizeHandleHoverStyle : resizeHandleStyle),
+          ...positionStyles,
+          transition: `all ${DURATION.fast} ${EASING.gentle}`,
+        }}
+        onMouseDown={handleResize}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      />
+    );
+  };
+
+  // File input ref for double-click to change photo
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const onDrop = useCallback(
     (acceptedFiles: File[]) => {
@@ -189,6 +635,23 @@ function DeviceFrame({
     noClick: isDragging,
     noDrag: true, // Disable dropzone drag, we handle our own
   });
+
+  // Handle double-click to change photo
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    fileInputRef.current?.click();
+  };
+
+  // Handle file selection from hidden input
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      onUpload(file, deviceIndex);
+    }
+    // Reset input so same file can be selected again
+    e.target.value = '';
+  };
 
   // Handle drag start
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -244,53 +707,84 @@ function DeviceFrame({
   ];
 
   if (position.perspective) {
-    transform.push("perspective(1000px) rotateY(5deg)");
+    const perspDist = position.perspectiveDistance || 1000;
+    const rotateY = position.perspectiveAngle ?? 5;
+    const rotateX = position.perspectiveX ?? 0;
+    transform.push(`perspective(${perspDist}px) rotateY(${rotateY}deg) rotateX(${rotateX}deg)`);
   }
 
-  // Get bezel color based on device color
-  const bezelColors: Record<string, string> = {
-    "natural-titanium": "#8A8A8F",
-    "blue-titanium": "#3C4C5C",
-    "white-titanium": "#F5F5F0",
-    "black-titanium": "#2E2E30",
-    "space-black": "#1F1F1F",
-    "silver": "#E3E4E5",
+  // Get bezel color based on device color (supports preset IDs and custom hex colors)
+  const bezelColors: Record<string, { frame: string; bezel: string }> = {
+    // iPhone 16 Pro Colors
+    "desert-titanium": { frame: "#C4A77D", bezel: "#8B7355" },
+    "natural-titanium": { frame: "#A8A9AD", bezel: "#6E6E73" },
+    "white-titanium": { frame: "#F5F5F0", bezel: "#D1D1D1" },
+    "black-titanium": { frame: "#3B3B3D", bezel: "#1D1D1F" },
+    // iPhone 16 Standard Colors
+    "ultramarine": { frame: "#8585FF", bezel: "#5454CD" },
+    "teal": { frame: "#54B4B4", bezel: "#3A8080" },
+    "pink": { frame: "#F5A5C4", bezel: "#C48098" },
+    "white": { frame: "#F5F5F7", bezel: "#E0E0E2" },
+    "black": { frame: "#2E2E30", bezel: "#1A1A1C" },
+    // Legacy Colors
+    "blue-titanium": { frame: "#3C4C5C", bezel: "#2A3642" },
+    "space-black": { frame: "#1F1F1F", bezel: "#0D0D0D" },
+    "silver": { frame: "#E3E4E6", bezel: "#B0B1B3" },
+    "gold": { frame: "#F4E8CE", bezel: "#C1B59C" },
+    "deep-purple": { frame: "#4B4453", bezel: "#332D38" },
   };
 
-  const bezelColor = bezelColors[deviceColor] || "#1F1F1F";
+  // Support custom hex colors - if the color starts with #, use it directly
+  // and generate a darker bezel color
+  const getBezelColors = (color: string) => {
+    if (color.startsWith("#")) {
+      // Parse hex and darken for bezel
+      const hex = color.slice(1);
+      const r = parseInt(hex.slice(0, 2), 16);
+      const g = parseInt(hex.slice(2, 4), 16);
+      const b = parseInt(hex.slice(4, 6), 16);
+      const darkenFactor = 0.7;
+      const darkerR = Math.round(r * darkenFactor);
+      const darkerG = Math.round(g * darkenFactor);
+      const darkerB = Math.round(b * darkenFactor);
+      const bezel = `#${darkerR.toString(16).padStart(2, '0')}${darkerG.toString(16).padStart(2, '0')}${darkerB.toString(16).padStart(2, '0')}`;
+      return { frame: color, bezel };
+    }
+    return bezelColors[color] || { frame: "#1F1F1F", bezel: "#0D0D0D" };
+  };
+
+  const { frame: frameColor, bezel: bezelColor } = getBezelColors(deviceColor);
 
   // Canvas dimensions (matching the preview container)
+  // Using percentage-based sizing for better responsiveness
   const canvasWidth = 340;
 
   // Device dimensions - scale is relative to canvas width
   // Base device aspect ratio ~1:2.17 (iPhone proportions)
-  const baseDeviceWidth = position.noFrame ? canvasWidth * 0.95 : canvasWidth;
+  // Base width is 45% of canvas to ensure it fits with padding
+  const baseDeviceWidth = position.noFrame ? canvasWidth * 0.85 : canvasWidth * 0.45;
   const deviceWidth = baseDeviceWidth * position.scale;
   const deviceHeight = deviceWidth * 2.17;
 
+  // Figma/Canva-style device wrapper styling
+  const deviceWrapperStyle: React.CSSProperties = {
+    position: "absolute",
+    left: `${position.position.x * 100}%`,
+    top: `${position.position.y * 100}%`,
+    transform: transform.join(" ") + (isDragging ? " scale(1.02)" : ""),
+    zIndex: isDragging ? 100 : position.zIndex,
+    opacity: isDragging ? 0.92 : (position.opacity ?? 1),
+    // Smooth Figma-style transitions
+    transition: isDragging
+      ? "none"
+      : `transform ${DURATION.slow} ${EASING.gentle}, opacity ${DURATION.fast} ${EASING.gentle}`,
+  };
+
   return (
-    <div
-      className={cn(
-        "absolute transition-all ease-out",
-        isDragging ? "duration-0 cursor-grabbing" : "duration-500"
-      )}
-      style={{
-        left: `${position.position.x * 100}%`,
-        top: `${position.position.y * 100}%`,
-        transform: transform.join(" "),
-        zIndex: isDragging ? 100 : position.zIndex,
-        opacity: position.opacity ?? 1,
-      }}
-    >
+    <div style={deviceWrapperStyle}>
       {imageUrl ? (
         <div
-          className={cn(
-            "relative overflow-hidden transition-all duration-300 group",
-            position.noFrame ? "" : "",
-            isSelected && "ring-2 ring-[#0a84ff] ring-offset-2 ring-offset-[#0a0a0a]",
-            onPositionChange && "cursor-grab",
-            isDragging && "cursor-grabbing"
-          )}
+          className="relative overflow-hidden group"
           style={{
             width: `${deviceWidth}px`,
             height: `${deviceHeight}px`,
@@ -298,27 +792,50 @@ function DeviceFrame({
             borderRadius: position.noFrame
               ? (position.roundedCorners ? `${position.roundedCorners}px` : "0")
               : `${deviceWidth * 0.165}px`, // ~53px for standard size, matches iOS superellipse
-            backgroundColor: position.noFrame ? "transparent" : bezelColor,
-            // Realistic layered shadows matching real device photography
-            boxShadow: shadow && !position.noFrame
-              ? position.floatingShadow
-                ? `0 50px 100px -20px rgba(0,0,0,${shadowOpacity * 0.8}), 0 30px 60px -30px rgba(0,0,0,${shadowOpacity})`
-                : [
-                    `inset 0 0 0 1px rgba(255,255,255,0.08)`, // Inner edge highlight
-                    `0 1px 2px rgba(0,0,0,0.1)`, // Tight shadow
-                    `0 4px 8px rgba(0,0,0,0.15)`, // Close shadow
-                    `0 ${shadowBlur / 2}px ${shadowBlur}px rgba(0,0,0,${shadowOpacity * 0.35})`, // Medium shadow
-                    `0 ${shadowBlur}px ${shadowBlur * 2}px rgba(0,0,0,${shadowOpacity * 0.25})`, // Far shadow
-                  ].join(", ")
-              : "none",
+            backgroundColor: position.noFrame ? "transparent" : frameColor,
+            cursor: onPositionChange ? (isDragging ? "grabbing" : "grab") : "default",
+            // Smooth Figma-style transitions
+            transition: isDragging
+              ? "none"
+              : `box-shadow ${DURATION.smooth} ${EASING.gentle}`,
+            // Realistic layered shadows matching real device photography + selection
+            boxShadow: isDragging
+              ? "0 24px 48px rgba(0,0,0,0.35), 0 12px 24px rgba(0,0,0,0.25)" // Canva-style elevation
+              : shadow && !position.noFrame
+                ? position.floatingShadow
+                  ? `0 50px 100px -20px rgba(0,0,0,${shadowOpacity * 0.8}), 0 30px 60px -30px rgba(0,0,0,${shadowOpacity})`
+                  : [
+                      `inset 0 0 0 1px rgba(255,255,255,0.08)`, // Inner edge highlight
+                      `0 1px 2px rgba(0,0,0,0.1)`, // Tight shadow
+                      `0 4px 8px rgba(0,0,0,0.15)`, // Close shadow
+                      `0 ${shadowBlur / 2}px ${shadowBlur}px rgba(0,0,0,${shadowOpacity * 0.35})`, // Medium shadow
+                      `0 ${shadowBlur}px ${shadowBlur * 2}px rgba(0,0,0,${shadowOpacity * 0.25})`, // Far shadow
+                    ].join(", ")
+                : "none",
+            // Selection styling
+            outline: isSelected ? "2px solid #0a84ff" : "none",
+            outlineOffset: isSelected ? "3px" : "0",
           }}
           onMouseDown={handleMouseDown}
+          onDoubleClick={handleDoubleClick}
         >
-          {/* Drag indicator */}
+          {/* Hidden file input for double-click to change photo */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            className="hidden"
+            onChange={handleFileChange}
+          />
+
+          {/* Drag indicator - Figma style */}
           {onPositionChange && (
-            <div className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 rounded-md bg-[#1c1c1e]/90 border border-[#3a3a3c] opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center gap-1 text-[10px] text-[#8e8e93] z-50 pointer-events-none">
+            <div
+              className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 rounded-md bg-[#1c1c1e]/90 border border-[#3a3a3c] opacity-0 group-hover:opacity-100 flex items-center gap-1 text-[10px] text-[#8e8e93] z-50 pointer-events-none"
+              style={{ transition: `opacity ${DURATION.fast} ${EASING.gentle}` }}
+            >
               <Move className="w-3 h-3" />
-              <span>Drag to move</span>
+              <span>Drag · Double-click to change</span>
             </div>
           )}
 
@@ -413,7 +930,12 @@ function DeviceFrame({
             <img
               src={imageUrl}
               alt="Screenshot"
-              className="w-full h-full object-cover"
+              className="w-full h-full"
+              style={{
+                objectFit: imageFit,
+                // Center the image when using contain
+                objectPosition: 'center center',
+              }}
             />
           </div>
 
@@ -456,6 +978,23 @@ function DeviceFrame({
                 borderRadius: `${deviceWidth * 0.0075}px`,
               }}
             />
+          )}
+
+          {/* Resize handles for device frame - Figma style */}
+          {onScaleChange && (
+            <>
+              <DeviceResizeHandle corner="topLeft" />
+              <DeviceResizeHandle corner="topRight" />
+              <DeviceResizeHandle corner="bottomLeft" />
+              <DeviceResizeHandle corner="bottomRight" />
+            </>
+          )}
+
+          {/* Scale indicator */}
+          {isSelected && onScaleChange && (
+            <div className="absolute -bottom-7 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded bg-[#1c1c1e]/90 border border-[#3a3a3c] text-[9px] text-[#8e8e93] whitespace-nowrap z-50">
+              {Math.round(position.scale * 100)}%
+            </div>
           )}
         </div>
       ) : (
@@ -518,7 +1057,8 @@ interface DraggableTextProps {
   isSelected: boolean;
   canvasRef: React.RefObject<HTMLDivElement | null>;
   onSelect: () => void;
-  onPositionChange: (newY: number) => void;
+  onPositionChange?: (newY: number) => void;
+  onContentChange?: (newContent: string) => void;
 }
 
 function DraggableText({
@@ -529,9 +1069,59 @@ function DraggableText({
   canvasRef,
   onSelect,
   onPositionChange,
+  onContentChange,
 }: DraggableTextProps) {
   const [isDragging, setIsDragging] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(content);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const dragStartRef = useRef<{ y: number; posY: number } | null>(null);
+
+  // Update editValue when content changes externally
+  useEffect(() => {
+    if (!isEditing) {
+      setEditValue(content);
+    }
+  }, [content, isEditing]);
+
+  // Focus input when editing starts
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditing]);
+
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (onContentChange) {
+      setIsEditing(true);
+    }
+  };
+
+  const handleInputBlur = () => {
+    setIsEditing(false);
+    if (onContentChange && editValue !== content) {
+      onContentChange(editValue);
+    }
+  };
+
+  const handleInputKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+      // Cmd+Enter or Ctrl+Enter to save and exit
+      e.preventDefault();
+      setIsEditing(false);
+      if (onContentChange && editValue !== content) {
+        onContentChange(editValue);
+      }
+    } else if (e.key === "Escape") {
+      // Escape to cancel
+      setIsEditing(false);
+      setEditValue(content);
+    }
+    // Regular Enter key will add a new line (default textarea behavior)
+  };
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (!canvasRef?.current) return;
@@ -547,7 +1137,7 @@ function DraggableText({
   };
 
   useEffect(() => {
-    if (!isDragging || !canvasRef?.current) return;
+    if (!isDragging || !canvasRef?.current || !onPositionChange) return;
 
     const handleMouseMove = (e: MouseEvent) => {
       if (!dragStartRef.current || !canvasRef?.current) return;
@@ -573,26 +1163,52 @@ function DraggableText({
     };
   }, [isDragging, onPositionChange, canvasRef]);
 
+  // Figma/Canva-style wrapper styling
+  const wrapperStyle: React.CSSProperties = {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: `${text.positionY * 100}%`,
+    textAlign: text.style.alignment as React.CSSProperties["textAlign"],
+    padding: "0 20px",
+    cursor: isDragging ? "grabbing" : "grab",
+    zIndex: isDragging ? 50 : "auto",
+    // Smooth Figma-style transitions
+    transition: isDragging
+      ? "none"
+      : `transform ${DURATION.smooth} ${EASING.gentle}, top ${DURATION.smooth} ${EASING.gentle}, box-shadow ${DURATION.smooth} ${EASING.gentle}`,
+    // Selection styling
+    borderRadius: "8px",
+    ...(isSelected ? {
+      background: "rgba(255,255,255,0.05)",
+      outline: "2px solid #0a84ff",
+      outlineOffset: "4px",
+      boxShadow: "0 0 0 1px rgba(10,132,255,0.1)",
+    } : {}),
+    // Dragging elevation effect (Canva-style)
+    ...(isDragging ? {
+      transform: "scale(1.02)",
+      opacity: 0.92,
+      boxShadow: "0 8px 24px rgba(0,0,0,0.2)",
+    } : {}),
+  };
+
   return (
     <div
-      className={cn(
-        "absolute left-0 right-0 px-5 transition-all group",
-        isDragging ? "duration-0 cursor-grabbing z-50" : "duration-200 cursor-grab",
-        isSelected && "ring-2 ring-[#0a84ff] ring-offset-4 ring-offset-transparent rounded-lg bg-white/5"
-      )}
-      style={{
-        top: `${text.positionY * 100}%`,
-        textAlign: text.style.alignment as any,
-        animationDelay: `${index * 100}ms`,
-      }}
+      className="group"
+      style={wrapperStyle}
       onClick={(e) => {
         e.stopPropagation();
         onSelect();
       }}
-      onMouseDown={handleMouseDown}
+      onMouseDown={isEditing ? undefined : handleMouseDown}
+      onDoubleClick={handleDoubleClick}
     >
-      {/* Drag indicator */}
-      <div className="absolute -left-6 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+      {/* Drag indicator - Figma style */}
+      <div
+        className="absolute -left-6 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 pointer-events-none"
+        style={{ transition: `opacity ${DURATION.fast} ${EASING.gentle}` }}
+      >
         <div className="flex flex-col gap-0.5">
           <div className="w-1 h-1 rounded-full bg-[#8e8e93]" />
           <div className="w-1 h-1 rounded-full bg-[#8e8e93]" />
@@ -600,22 +1216,47 @@ function DraggableText({
         </div>
       </div>
 
-      <span
-        className="animate-fadeInUp inline-block select-none"
-        style={{
-          fontFamily: getFontFamily(text.style.fontFamily),
-          fontSize: `${text.style.fontSize / 3.5}px`,
-          fontWeight: text.style.fontWeight,
-          color: text.style.color,
-          lineHeight: text.style.lineHeight,
-          textShadow: text.style.color === "#FFFFFF"
-            ? "0 2px 8px rgba(0,0,0,0.5)"
-            : undefined,
-          letterSpacing: "-0.02em",
-        }}
-      >
-        {content}
-      </span>
+      {isEditing ? (
+        <textarea
+          ref={inputRef}
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onBlur={handleInputBlur}
+          onKeyDown={handleInputKeyDown}
+          rows={editValue.split('\n').length || 1}
+          className="bg-transparent border-none outline-none w-full resize-none overflow-hidden"
+          style={{
+            fontFamily: getFontFamily(text.style.fontFamily),
+            fontSize: `${text.style.fontSize / 3.5}px`,
+            fontWeight: text.style.fontWeight,
+            color: text.style.color,
+            lineHeight: text.style.lineHeight,
+            textShadow: text.style.color === "#FFFFFF"
+              ? "0 2px 8px rgba(0,0,0,0.5)"
+              : undefined,
+            letterSpacing: "-0.02em",
+            textAlign: text.style.alignment as React.CSSProperties["textAlign"],
+          }}
+        />
+      ) : (
+        <span
+          className="animate-fadeInUp inline-block select-none whitespace-pre-wrap"
+          style={{
+            fontFamily: getFontFamily(text.style.fontFamily),
+            fontSize: `${text.style.fontSize / 3.5}px`,
+            fontWeight: text.style.fontWeight,
+            color: text.style.color,
+            lineHeight: text.style.lineHeight,
+            textShadow: text.style.color === "#FFFFFF"
+              ? "0 2px 8px rgba(0,0,0,0.5)"
+              : undefined,
+            letterSpacing: "-0.02em",
+            animationDelay: `${index * 100}ms`,
+          }}
+        >
+          {content}
+        </span>
+      )}
     </div>
   );
 }
@@ -779,7 +1420,7 @@ function SocialProofRenderer({
 
   if (!element.enabled) return null;
 
-  // Resize handle component
+  // Resize handle component - handles all four corners with proper direction
   const ResizeHandle = ({ position }: { position: 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight' }) => {
     const handleResize = (e: React.MouseEvent) => {
       if (!onScaleChange || !canvasRef?.current) return;
@@ -796,8 +1437,28 @@ function SocialProofRenderer({
       const handleMouseMove = (moveE: MouseEvent) => {
         const deltaX = moveE.clientX - startX;
         const deltaY = moveE.clientY - startY;
-        // Use diagonal distance for uniform scaling
-        const delta = (deltaX + deltaY) / 2;
+
+        // Calculate scale based on corner position
+        // bottomRight: positive X and Y increase scale
+        // topLeft: negative X and Y increase scale
+        // topRight: positive X, negative Y
+        // bottomLeft: negative X, positive Y
+        let delta = 0;
+        switch (position) {
+          case 'bottomRight':
+            delta = (deltaX + deltaY) / 2;
+            break;
+          case 'topLeft':
+            delta = (-deltaX - deltaY) / 2;
+            break;
+          case 'topRight':
+            delta = (deltaX - deltaY) / 2;
+            break;
+          case 'bottomLeft':
+            delta = (-deltaX + deltaY) / 2;
+            break;
+        }
+
         const scaleFactor = delta / 100;
         const newScale = Math.max(0.3, Math.min(3, startScale + scaleFactor));
         onScaleChange(newScale);
@@ -814,30 +1475,48 @@ function SocialProofRenderer({
     };
 
     const positionStyles = resizeHandleClasses[position];
+    const [isHovered, setIsHovered] = useState(false);
+
     return (
       <div
-        className="absolute opacity-0 group-hover:opacity-100 transition-opacity z-50"
+        className="absolute opacity-0 group-hover:opacity-100 z-50"
         style={{
-          ...resizeHandleStyle,
+          ...(isHovered ? resizeHandleHoverStyle : resizeHandleStyle),
           ...positionStyles,
+          transition: `all ${DURATION.fast} ${EASING.gentle}`,
         }}
         onMouseDown={handleResize}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
       />
     );
   };
 
+  // Figma/Canva-style base styling with smooth transitions
   const baseStyle: React.CSSProperties = {
     position: "absolute",
     left: `${element.positionX * 100}%`,
     top: `${element.positionY * 100}%`,
-    transform: `translate(-50%, -50%) scale(${element.style.scale})`,
-    opacity: element.style.opacity,
+    transform: `translate(-50%, -50%) scale(${element.style.scale})${isDragging ? " scale(1.02)" : ""}`,
+    opacity: isDragging ? 0.92 : element.style.opacity,
     zIndex: isDragging || isResizing ? 100 : 20,
     cursor: onPositionChange ? (isDragging ? "grabbing" : "grab") : "default",
-    transition: isDragging || isResizing ? "none" : "box-shadow 0.2s, transform 0.15s",
+    // Smooth Figma-style transitions
+    transition: isDragging || isResizing
+      ? "none"
+      : `transform ${DURATION.smooth} ${EASING.gentle}, box-shadow ${DURATION.smooth} ${EASING.gentle}, opacity ${DURATION.fast} ${EASING.gentle}`,
     borderRadius: "16px",
-    outline: isSelected ? "2px solid #0a84ff" : "none",
-    outlineOffset: "4px",
+    // Selection styling
+    ...(isSelected ? {
+      outline: "2px solid #0a84ff",
+      outlineOffset: "3px",
+      boxShadow: "0 0 0 1px rgba(10,132,255,0.1), 0 4px 12px rgba(10,132,255,0.15)",
+    } : {}),
+    // Dragging elevation effect (Canva-style)
+    ...(isDragging ? {
+      boxShadow: "0 16px 32px rgba(0,0,0,0.25), 0 8px 16px rgba(0,0,0,0.15)",
+      filter: "drop-shadow(0 4px 8px rgba(0,0,0,0.1))",
+    } : {}),
   };
 
   // iOS glassmorphism specifications (from Apple Liquid Glass design)
@@ -1485,6 +2164,339 @@ function SocialProofRenderer({
   }
 }
 
+// ============================================
+// BADGE OVERLAY RENDERER
+// ============================================
+
+// Badge text presets
+const BADGE_PRESETS: Record<string, { text: string; subtext?: string }> = {
+  'new': { text: 'NEW!' },
+  'sale': { text: 'SALE', subtext: '50% OFF' },
+  'featured': { text: '#1 APP' },
+  'editors-choice': { text: "Editor's Choice" },
+  'trending': { text: 'TRENDING' },
+  'best-seller': { text: 'BEST SELLER' },
+  'free': { text: 'FREE' },
+  'premium': { text: 'PREMIUM' },
+  'custom': { text: 'CUSTOM' },
+};
+
+interface BadgeOverlayRendererProps {
+  badge: BadgeOverlayElement;
+  canvasRef: React.RefObject<HTMLDivElement | null>;
+  onPositionChange?: (x: number, y: number) => void;
+  onScaleChange?: (scale: number) => void;
+  isSelected?: boolean;
+  onSelect?: () => void;
+}
+
+function BadgeOverlayRenderer({
+  badge,
+  canvasRef,
+  onPositionChange,
+  onScaleChange,
+  isSelected,
+  onSelect
+}: BadgeOverlayRendererProps) {
+  const [isDragging, setIsDragging] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
+  const dragStartRef = useRef<{ x: number; y: number; posX: number; posY: number } | null>(null);
+  const initialScaleRef = useRef<number>(badge.style.scale);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!onPositionChange || !canvasRef?.current || isResizing) return;
+    e.preventDefault();
+    e.stopPropagation();
+    onSelect?.();
+
+    const rect = canvasRef.current.getBoundingClientRect();
+    dragStartRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      posX: badge.positionX,
+      posY: badge.positionY,
+    };
+    setIsDragging(true);
+  };
+
+  useEffect(() => {
+    if (!isDragging || !onPositionChange || !canvasRef?.current) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!dragStartRef.current || !canvasRef?.current) return;
+
+      const rect = canvasRef.current.getBoundingClientRect();
+      const deltaX = (e.clientX - dragStartRef.current.x) / rect.width;
+      const deltaY = (e.clientY - dragStartRef.current.y) / rect.height;
+
+      const newX = Math.max(0.02, Math.min(0.98, dragStartRef.current.posX + deltaX));
+      const newY = Math.max(0.02, Math.min(0.98, dragStartRef.current.posY + deltaY));
+
+      onPositionChange(newX, newY);
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+      dragStartRef.current = null;
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isDragging, onPositionChange, canvasRef]);
+
+  if (!badge.enabled) return null;
+
+  const preset = BADGE_PRESETS[badge.type];
+  const displayText = badge.text || preset.text;
+  const displaySubtext = badge.subtext || preset.subtext;
+
+  // Resize handle component
+  const ResizeHandle = ({ position }: { position: 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight' }) => {
+    const handleResize = (e: React.MouseEvent) => {
+      if (!onScaleChange || !canvasRef?.current) return;
+      e.preventDefault();
+      e.stopPropagation();
+      onSelect?.();
+      setIsResizing(true);
+      initialScaleRef.current = badge.style.scale;
+
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const startScale = badge.style.scale;
+
+      const handleMouseMove = (moveE: MouseEvent) => {
+        const deltaX = moveE.clientX - startX;
+        const deltaY = moveE.clientY - startY;
+
+        let delta = 0;
+        switch (position) {
+          case 'bottomRight': delta = (deltaX + deltaY) / 2; break;
+          case 'topLeft': delta = (-deltaX - deltaY) / 2; break;
+          case 'topRight': delta = (deltaX - deltaY) / 2; break;
+          case 'bottomLeft': delta = (-deltaX + deltaY) / 2; break;
+        }
+
+        const scaleFactor = delta / 100;
+        const newScale = Math.max(0.3, Math.min(3, startScale + scaleFactor));
+        onScaleChange(newScale);
+      };
+
+      const handleMouseUp = () => {
+        setIsResizing(false);
+        window.removeEventListener("mousemove", handleMouseMove);
+        window.removeEventListener("mouseup", handleMouseUp);
+      };
+
+      window.addEventListener("mousemove", handleMouseMove);
+      window.addEventListener("mouseup", handleMouseUp);
+    };
+
+    const positionStyles = resizeHandleClasses[position];
+    const [isHovered, setIsHovered] = useState(false);
+
+    return (
+      <div
+        className="absolute opacity-0 group-hover:opacity-100 z-50"
+        style={{
+          ...(isHovered ? resizeHandleHoverStyle : resizeHandleStyle),
+          ...positionStyles,
+          transition: `all ${DURATION.fast} ${EASING.gentle}`,
+        }}
+        onMouseDown={handleResize}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      />
+    );
+  };
+
+  // Base wrapper styles
+  const wrapperStyle: React.CSSProperties = {
+    position: "absolute",
+    left: `${badge.positionX * 100}%`,
+    top: `${badge.positionY * 100}%`,
+    transform: `translate(-50%, -50%) scale(${badge.style.scale}) rotate(${badge.style.rotation}deg)${isDragging ? " scale(1.02)" : ""}`,
+    opacity: isDragging ? 0.92 : 1,
+    cursor: isDragging ? "grabbing" : "grab",
+    transition: isDragging ? "none" : `all ${DURATION.normal} ${EASING.gentle}`,
+    zIndex: isDragging ? 100 : 30,
+    outline: isSelected ? "2px solid #0a84ff" : "none",
+    outlineOffset: "4px",
+  };
+
+  // Render different badge styles
+  const renderBadge = () => {
+    const { variant, backgroundColor, textColor, borderColor, shadow, pulse } = badge.style;
+
+    const baseTextStyle: React.CSSProperties = {
+      fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif",
+      fontWeight: 700,
+      color: textColor,
+      textTransform: variant === 'burst' ? 'uppercase' : 'none',
+      letterSpacing: variant === 'burst' ? '0.5px' : '-0.2px',
+    };
+
+    switch (variant) {
+      case 'pill':
+        return (
+          <div style={{
+            background: backgroundColor,
+            borderRadius: "24px",
+            padding: "8px 20px",
+            boxShadow: shadow ? "0 4px 12px rgba(0,0,0,0.25), 0 2px 4px rgba(0,0,0,0.15)" : "none",
+            border: borderColor ? `2px solid ${borderColor}` : "none",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: "2px",
+          }}>
+            <span style={{ ...baseTextStyle, fontSize: "14px" }}>{displayText}</span>
+            {displaySubtext && (
+              <span style={{ ...baseTextStyle, fontSize: "10px", opacity: 0.9 }}>{displaySubtext}</span>
+            )}
+          </div>
+        );
+
+      case 'ribbon':
+        return (
+          <div style={{
+            position: "relative",
+            background: backgroundColor,
+            padding: "8px 24px",
+            boxShadow: shadow ? "0 4px 12px rgba(0,0,0,0.25)" : "none",
+            clipPath: "polygon(0 0, 100% 0, 95% 50%, 100% 100%, 0 100%, 5% 50%)",
+          }}>
+            <span style={{ ...baseTextStyle, fontSize: "13px" }}>{displayText}</span>
+          </div>
+        );
+
+      case 'corner':
+        return (
+          <div style={{
+            width: "100px",
+            height: "100px",
+            position: "relative",
+            overflow: "hidden",
+          }}>
+            <div style={{
+              position: "absolute",
+              top: "18px",
+              right: "-32px",
+              width: "120px",
+              background: backgroundColor,
+              padding: "6px 0",
+              transform: "rotate(45deg)",
+              transformOrigin: "center",
+              textAlign: "center",
+              boxShadow: shadow ? "0 2px 8px rgba(0,0,0,0.3)" : "none",
+            }}>
+              <span style={{ ...baseTextStyle, fontSize: "11px" }}>{displayText}</span>
+            </div>
+          </div>
+        );
+
+      case 'burst':
+        // Starburst/explosion badge
+        return (
+          <div style={{
+            position: "relative",
+            width: "80px",
+            height: "80px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}>
+            {/* Starburst background */}
+            <svg viewBox="0 0 100 100" style={{
+              position: "absolute",
+              width: "100%",
+              height: "100%",
+              filter: shadow ? "drop-shadow(0 3px 6px rgba(0,0,0,0.3))" : "none",
+            }}>
+              <polygon
+                points="50,0 61,35 97,35 68,57 79,91 50,70 21,91 32,57 3,35 39,35"
+                fill={backgroundColor}
+                stroke={borderColor || "none"}
+                strokeWidth={borderColor ? "2" : "0"}
+              />
+            </svg>
+            <div style={{
+              position: "relative",
+              zIndex: 1,
+              textAlign: "center",
+              lineHeight: 1.1,
+            }}>
+              <span style={{ ...baseTextStyle, fontSize: "12px", display: "block" }}>{displayText}</span>
+              {displaySubtext && (
+                <span style={{ ...baseTextStyle, fontSize: "9px", display: "block", marginTop: "2px" }}>{displaySubtext}</span>
+              )}
+            </div>
+          </div>
+        );
+
+      case 'tag':
+        return (
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            background: backgroundColor,
+            borderRadius: "4px 20px 20px 4px",
+            padding: "6px 16px 6px 12px",
+            boxShadow: shadow ? "0 3px 10px rgba(0,0,0,0.2)" : "none",
+            border: borderColor ? `1px solid ${borderColor}` : "none",
+          }}>
+            {/* Tag hole */}
+            <div style={{
+              width: "8px",
+              height: "8px",
+              borderRadius: "50%",
+              background: "rgba(255,255,255,0.3)",
+              marginRight: "8px",
+              border: "1px solid rgba(0,0,0,0.1)",
+            }} />
+            <span style={{ ...baseTextStyle, fontSize: "12px" }}>{displayText}</span>
+          </div>
+        );
+
+      default:
+        return (
+          <div style={{
+            background: backgroundColor,
+            borderRadius: "8px",
+            padding: "8px 16px",
+            boxShadow: shadow ? "0 4px 12px rgba(0,0,0,0.25)" : "none",
+          }}>
+            <span style={{ ...baseTextStyle, fontSize: "14px" }}>{displayText}</span>
+          </div>
+        );
+    }
+  };
+
+  return (
+    <div
+      className="group"
+      style={wrapperStyle}
+      onMouseDown={handleMouseDown}
+    >
+      {renderBadge()}
+
+      {/* Resize handles */}
+      {isSelected && (
+        <>
+          <ResizeHandle position="topLeft" />
+          <ResizeHandle position="topRight" />
+          <ResizeHandle position="bottomLeft" />
+          <ResizeHandle position="bottomRight" />
+        </>
+      )}
+    </div>
+  );
+}
+
 // iOS Notification Renderer - Realistic iOS notifications
 interface NotificationRendererProps {
   notification: NotificationElement;
@@ -1556,8 +2568,10 @@ function NotificationRenderer({
 
   const isDark = notification.style.dark;
 
-  // Resize handle for notifications
+  // Resize handle for notifications - handles all four corners with proper direction
   const ResizeHandle = ({ position }: { position: 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight' }) => {
+    const [isHovered, setIsHovered] = useState(false);
+
     const handleResize = (e: React.MouseEvent) => {
       if (!onScaleChange) return;
       e.preventDefault();
@@ -1572,7 +2586,24 @@ function NotificationRenderer({
       const handleMouseMove = (moveE: MouseEvent) => {
         const deltaX = moveE.clientX - startX;
         const deltaY = moveE.clientY - startY;
-        const delta = (deltaX + deltaY) / 2;
+
+        // Calculate scale based on corner position
+        let delta = 0;
+        switch (position) {
+          case 'bottomRight':
+            delta = (deltaX + deltaY) / 2;
+            break;
+          case 'topLeft':
+            delta = (-deltaX - deltaY) / 2;
+            break;
+          case 'topRight':
+            delta = (deltaX - deltaY) / 2;
+            break;
+          case 'bottomLeft':
+            delta = (-deltaX + deltaY) / 2;
+            break;
+        }
+
         const scaleFactor = delta / 100;
         const newScale = Math.max(0.3, Math.min(3, startScale + scaleFactor));
         onScaleChange(newScale);
@@ -1591,12 +2622,15 @@ function NotificationRenderer({
     const positionStyles = resizeHandleClasses[position];
     return (
       <div
-        className="absolute opacity-0 group-hover:opacity-100 transition-opacity z-50"
+        className="absolute opacity-0 group-hover:opacity-100 z-50"
         style={{
-          ...resizeHandleStyle,
+          ...(isHovered ? resizeHandleHoverStyle : resizeHandleStyle),
           ...positionStyles,
+          transition: `all ${DURATION.fast} ${EASING.gentle}`,
         }}
         onMouseDown={handleResize}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
       />
     );
   };
@@ -1611,22 +2645,37 @@ function NotificationRenderer({
   // - Padding: 12pt
   // - Blur: UIBlurEffect.Style.systemMaterial (~20px)
 
+  // Figma/Canva-style base styling with smooth transitions
+  const wrapperStyle: React.CSSProperties = {
+    position: "absolute",
+    left: `${notification.positionX * 100}%`,
+    top: `${notification.positionY * 100}%`,
+    transform: `translate(-50%, -50%) scale(${notification.style.scale})${isDragging ? " scale(1.02)" : ""}`,
+    opacity: isDragging ? 0.92 : notification.style.opacity,
+    zIndex: isDragging || isResizing ? 100 : 25,
+    cursor: onPositionChange ? (isDragging ? "grabbing" : "grab") : "default",
+    // Smooth Figma-style transitions
+    transition: isDragging || isResizing
+      ? "none"
+      : `transform ${DURATION.smooth} ${EASING.gentle}, box-shadow ${DURATION.smooth} ${EASING.gentle}, opacity ${DURATION.fast} ${EASING.gentle}`,
+    borderRadius: "13px",
+    // Selection styling
+    ...(isSelected ? {
+      outline: "2px solid #0a84ff",
+      outlineOffset: "4px",
+      boxShadow: "0 0 0 1px rgba(10,132,255,0.1), 0 4px 12px rgba(10,132,255,0.15)",
+    } : {}),
+    // Dragging elevation effect (Canva-style)
+    ...(isDragging ? {
+      boxShadow: "0 16px 32px rgba(0,0,0,0.25), 0 8px 16px rgba(0,0,0,0.15)",
+      filter: "drop-shadow(0 4px 8px rgba(0,0,0,0.1))",
+    } : {}),
+  };
+
   return (
     <div
       className="group"
-      style={{
-        position: "absolute",
-        left: `${notification.positionX * 100}%`,
-        top: `${notification.positionY * 100}%`,
-        transform: `translate(-50%, -50%) scale(${notification.style.scale})`,
-        opacity: notification.style.opacity,
-        zIndex: isDragging || isResizing ? 100 : 25,
-        cursor: onPositionChange ? (isDragging ? "grabbing" : "grab") : "default",
-        transition: isDragging || isResizing ? "none" : "transform 0.15s",
-        outline: isSelected ? "2px solid #0a84ff" : "none",
-        outlineOffset: "4px",
-        borderRadius: "13px",
-      }}
+      style={wrapperStyle}
       onMouseDown={handleMouseDown}
     >
       {/* iOS Notification Banner - Accurate iOS 17 specifications */}
@@ -1751,23 +2800,130 @@ export function Canvas() {
   const {
     project,
     selectedScreenshotId,
+    selectScreenshot,
     currentLocale,
     setScreenshotImage,
     selectText,
     selectedTextId,
     updateDevice,
+    updateDeviceAll,
     updateText,
+    updateTextTranslation,
     updateSocialProof,
     updateNotification,
+    updateBadge,
+    updateScreenshotLayout,
+    canvasState,
+    setZoom,
+    setPan,
   } = useEditorStore();
+
+  // Sync device settings to all screenshots by default
+  const [syncDeviceToAll, setSyncDeviceToAll] = useState(true);
 
   const [selectedSocialProofId, setSelectedSocialProofId] = useState<string | null>(null);
   const [selectedNotificationId, setSelectedNotificationId] = useState<string | null>(null);
+  const [selectedBadgeId, setSelectedBadgeId] = useState<string | null>(null);
 
-  const [selectedLayout, setSelectedLayout] = useState<string>("custom");
   const [deviceImages, setDeviceImages] = useState<Record<number, string>>({});
   const [customDevicePosition, setCustomDevicePosition] = useState({ x: 0.5, y: 0.55 });
   const canvasRef = useRef<HTMLDivElement>(null);
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
+
+  // Pan state
+  const [isPanning, setIsPanning] = useState(false);
+  const [isSpacePressed, setIsSpacePressed] = useState(false);
+  const panStartRef = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null);
+
+  // Handle wheel zoom (Cmd/Ctrl + scroll)
+  const handleWheel = useCallback((e: WheelEvent) => {
+    // Only zoom when Cmd/Ctrl is held
+    if (e.metaKey || e.ctrlKey) {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? 0.9 : 1.1;
+      const newZoom = Math.max(0.1, Math.min(5, canvasState.zoom * delta));
+      setZoom(newZoom);
+    }
+  }, [canvasState.zoom, setZoom]);
+
+  // Handle space key for pan mode
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't capture space when user is typing in an input or textarea
+      const target = e.target as HTMLElement;
+      const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+
+      if (e.code === "Space" && !e.repeat && !isTyping) {
+        e.preventDefault();
+        setIsSpacePressed(true);
+      }
+    };
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === "Space") {
+        setIsSpacePressed(false);
+        setIsPanning(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+    };
+  }, []);
+
+  // Handle pan start (space + drag or middle mouse)
+  const handlePanStart = useCallback((e: React.MouseEvent) => {
+    if (isSpacePressed || e.button === 1) {
+      e.preventDefault();
+      setIsPanning(true);
+      panStartRef.current = {
+        x: e.clientX,
+        y: e.clientY,
+        panX: canvasState.panX,
+        panY: canvasState.panY,
+      };
+    }
+  }, [isSpacePressed, canvasState.panX, canvasState.panY]);
+
+  // Handle pan move
+  useEffect(() => {
+    if (!isPanning) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!panStartRef.current) return;
+      const deltaX = e.clientX - panStartRef.current.x;
+      const deltaY = e.clientY - panStartRef.current.y;
+      setPan(panStartRef.current.panX + deltaX, panStartRef.current.panY + deltaY);
+    };
+
+    const handleMouseUp = () => {
+      setIsPanning(false);
+      panStartRef.current = null;
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isPanning, setPan]);
+
+  // Attach wheel event to canvas container
+  useEffect(() => {
+    const container = canvasContainerRef.current;
+    if (!container) return;
+    container.addEventListener("wheel", handleWheel, { passive: false });
+    return () => container.removeEventListener("wheel", handleWheel);
+  }, [handleWheel]);
+
+  // Snap guides state (Figma-style)
+  const [snapGuides, setSnapGuides] = useState<{
+    showCenterH: boolean;
+    showCenterV: boolean;
+    customGuides: { type: 'horizontal' | 'vertical'; position: number }[];
+  }>({ showCenterH: false, showCenterV: false, customGuides: [] });
 
   const selectedScreenshot = project.screenshots.find(
     (s) => s.id === selectedScreenshotId
@@ -1783,20 +2939,73 @@ export function Canvas() {
     }
   }, [selectedScreenshot?.id]);
 
-  // Handle device position change
+  // Handle device position change with snap guides
+  // Position is always per-screenshot (not synced)
   const handleDevicePositionChange = useCallback(
     (x: number, y: number) => {
       if (selectedScreenshotId) {
-        setCustomDevicePosition({ x, y });
-        updateDevice(selectedScreenshotId, { positionX: x, positionY: y });
-        // Switch to custom layout when dragging
-        if (selectedLayout !== "custom") {
-          setSelectedLayout("custom");
+        // Check for snap to center
+        const snapX = getSnapPosition(x, [0.5]);
+        const snapY = getSnapPosition(y, [0.5]);
+
+        // Apply snap if near center
+        const finalX = snapX !== null ? snapX : x;
+        const finalY = snapY !== null ? snapY : y;
+
+        // Show/hide snap guides
+        setSnapGuides({
+          showCenterV: snapX !== null || isNearSnap(x, 0.5),
+          showCenterH: snapY !== null || isNearSnap(y, 0.5),
+          customGuides: [],
+        });
+
+        setCustomDevicePosition({ x: finalX, y: finalY });
+        // Position is independent per screenshot - never sync to all
+        updateDevice(selectedScreenshotId, { positionX: finalX, positionY: finalY });
+        // Switch to custom layout when dragging (per-screenshot)
+        const currentScreenshot = project.screenshots.find(s => s.id === selectedScreenshotId);
+        if (currentScreenshot?.layout !== "custom") {
+          updateScreenshotLayout(selectedScreenshotId, "custom");
         }
       }
     },
-    [selectedScreenshotId, updateDevice, selectedLayout]
+    [selectedScreenshotId, updateDevice, updateScreenshotLayout, project.screenshots]
   );
+
+  // Handle device scale change (for resize handles)
+  const handleDeviceScaleChange = useCallback(
+    (scale: number) => {
+      if (selectedScreenshotId) {
+        // Sync to all screenshots if toggle is on
+        if (syncDeviceToAll) {
+          updateDeviceAll({ scale });
+        } else {
+          updateDevice(selectedScreenshotId, { scale });
+        }
+        // Switch to custom layout when resizing (per-screenshot)
+        const currentScreenshot = project.screenshots.find(s => s.id === selectedScreenshotId);
+        if (currentScreenshot?.layout !== "custom") {
+          updateScreenshotLayout(selectedScreenshotId, "custom");
+        }
+      }
+    },
+    [selectedScreenshotId, updateDevice, updateDeviceAll, syncDeviceToAll, updateScreenshotLayout, project.screenshots]
+  );
+
+  // Clear snap guides when drag ends
+  const clearSnapGuides = useCallback(() => {
+    setSnapGuides({ showCenterH: false, showCenterV: false, customGuides: [] });
+  }, []);
+
+  // Global mouseup listener to clear snap guides
+  useEffect(() => {
+    const handleMouseUp = () => {
+      // Delay slightly to allow final position update
+      setTimeout(clearSnapGuides, 50);
+    };
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => window.removeEventListener("mouseup", handleMouseUp);
+  }, [clearSnapGuides]);
 
   // Handle text position change
   const handleTextPositionChange = useCallback(
@@ -1808,11 +3017,26 @@ export function Canvas() {
     [selectedScreenshotId, updateText]
   );
 
-  // Handle social proof position change
+  // Handle social proof position change with snap guides
   const handleSocialProofPositionChange = useCallback(
     (elementId: string, x: number, y: number) => {
       if (selectedScreenshotId) {
-        updateSocialProof(selectedScreenshotId, elementId, { positionX: x, positionY: y });
+        // Check for snap to center
+        const snapX = getSnapPosition(x, [0.5]);
+        const snapY = getSnapPosition(y, [0.5]);
+
+        // Apply snap if near center
+        const finalX = snapX !== null ? snapX : x;
+        const finalY = snapY !== null ? snapY : y;
+
+        // Show/hide snap guides
+        setSnapGuides({
+          showCenterV: snapX !== null || isNearSnap(x, 0.5),
+          showCenterH: snapY !== null || isNearSnap(y, 0.5),
+          customGuides: [],
+        });
+
+        updateSocialProof(selectedScreenshotId, elementId, { positionX: finalX, positionY: finalY });
       }
     },
     [selectedScreenshotId, updateSocialProof]
@@ -1828,11 +3052,26 @@ export function Canvas() {
     [selectedScreenshotId, updateSocialProof, selectedScreenshot]
   );
 
-  // Handle notification position change
+  // Handle notification position change with snap guides
   const handleNotificationPositionChange = useCallback(
     (notificationId: string, x: number, y: number) => {
       if (selectedScreenshotId) {
-        updateNotification(selectedScreenshotId, notificationId, { positionX: x, positionY: y });
+        // Check for snap to center
+        const snapX = getSnapPosition(x, [0.5]);
+        const snapY = getSnapPosition(y, [0.5]);
+
+        // Apply snap if near center
+        const finalX = snapX !== null ? snapX : x;
+        const finalY = snapY !== null ? snapY : y;
+
+        // Show/hide snap guides
+        setSnapGuides({
+          showCenterV: snapX !== null || isNearSnap(x, 0.5),
+          showCenterH: snapY !== null || isNearSnap(y, 0.5),
+          customGuides: [],
+        });
+
+        updateNotification(selectedScreenshotId, notificationId, { positionX: finalX, positionY: finalY });
       }
     },
     [selectedScreenshotId, updateNotification]
@@ -1849,6 +3088,44 @@ export function Canvas() {
       }
     },
     [selectedScreenshotId, updateNotification, selectedScreenshot]
+  );
+
+  // Handle badge position change with snap guides
+  const handleBadgePositionChange = useCallback(
+    (badgeId: string, x: number, y: number) => {
+      if (selectedScreenshotId) {
+        // Check for snap to center
+        const snapX = getSnapPosition(x, [0.5]);
+        const snapY = getSnapPosition(y, [0.5]);
+
+        // Apply snap if near center
+        const finalX = snapX !== null ? snapX : x;
+        const finalY = snapY !== null ? snapY : y;
+
+        // Show/hide snap guides
+        setSnapGuides({
+          showCenterV: snapX !== null || isNearSnap(x, 0.5),
+          showCenterH: snapY !== null || isNearSnap(y, 0.5),
+          customGuides: [],
+        });
+
+        updateBadge(selectedScreenshotId, badgeId, { positionX: finalX, positionY: finalY });
+      }
+    },
+    [selectedScreenshotId, updateBadge]
+  );
+
+  // Handle badge scale change
+  const handleBadgeScaleChange = useCallback(
+    (badgeId: string, scale: number) => {
+      if (selectedScreenshotId) {
+        const badge = selectedScreenshot?.badges?.find(b => b.id === badgeId);
+        if (badge) {
+          updateBadge(selectedScreenshotId, badgeId, { style: { ...badge.style, scale } });
+        }
+      }
+    },
+    [selectedScreenshotId, updateBadge, selectedScreenshot]
   );
 
   const handleImageUpload = useCallback(
@@ -1884,8 +3161,10 @@ export function Canvas() {
     );
   }
 
-  const { template, device, image, texts, socialProof, notifications } = selectedScreenshot;
-  const layout = LAYOUTS[selectedLayout] || LAYOUTS["single-center"];
+  const { template, device, image, texts, socialProof, notifications, layout: screenshotLayout } = selectedScreenshot;
+  // Use screenshot's layout or fall back to "custom" if not set
+  const currentLayoutId = screenshotLayout || "custom";
+  const layout = LAYOUTS[currentLayoutId] || LAYOUTS["single-center"];
 
   // Generate background style
   const backgroundStyle: React.CSSProperties = {};
@@ -1955,6 +3234,13 @@ export function Canvas() {
 
     backgroundStyle.background = gradients.join(", ");
     backgroundStyle.backgroundColor = bg.base_color || "#0D0D1A";
+  } else if (bg.type === "pattern" && bg.patternConfig) {
+    // Pattern background using SVG data URIs
+    const { type: patternType, color, backgroundColor, size, opacity } = bg.patternConfig;
+    backgroundStyle.backgroundColor = backgroundColor;
+    backgroundStyle.backgroundImage = getPatternSVG(patternType, color, opacity);
+    backgroundStyle.backgroundSize = `${size}px ${size}px`;
+    backgroundStyle.backgroundRepeat = 'repeat';
   }
 
   return (
@@ -1972,20 +3258,29 @@ export function Canvas() {
               <button
                 key={id}
                 onClick={() => {
-                  setSelectedLayout(id);
-                  // When selecting a preset, update the device position
-                  if (id !== "custom" && selectedScreenshotId && layoutDef.devices[0]) {
-                    const presetPos = layoutDef.devices[0].position;
-                    setCustomDevicePosition(presetPos);
-                    updateDevice(selectedScreenshotId, {
-                      positionX: presetPos.x,
-                      positionY: presetPos.y,
-                    });
+                  // Store layout on the current screenshot only
+                  if (selectedScreenshotId) {
+                    updateScreenshotLayout(selectedScreenshotId, id);
+                    // When selecting a preset, update the device position
+                    if (id !== "custom" && layoutDef.devices[0]) {
+                      const presetPos = layoutDef.devices[0].position;
+                      const presetScale = layoutDef.devices[0].scale;
+                      const presetRotation = layoutDef.devices[0].rotation;
+                      setCustomDevicePosition(presetPos);
+                      // Layout applies only to current screenshot - no syncing
+                      const updates = {
+                        positionX: presetPos.x,
+                        positionY: presetPos.y,
+                        ...(presetScale !== undefined && { scale: presetScale }),
+                        ...(presetRotation !== undefined && { rotation: presetRotation }),
+                      };
+                      updateDevice(selectedScreenshotId, updates);
+                    }
                   }
                 }}
                 className={cn(
                   "px-3 py-1.5 text-xs font-medium rounded-full whitespace-nowrap transition-all duration-200",
-                  selectedLayout === id
+                  currentLayoutId === id
                     ? "bg-[#0a84ff] text-white shadow-sm"
                     : "bg-[#2c2c2e] text-[#a1a1a6] hover:bg-[#3a3a3c] hover:text-[#f5f5f7]"
                 )}
@@ -1997,117 +3292,275 @@ export function Canvas() {
         </div>
       </div>
 
-      {/* Canvas area */}
-      <div className="flex-1 p-4 md:p-6 lg:p-8 overflow-auto">
-        <div className="flex items-center justify-center min-h-full">
-          {/* Screenshot Preview - with premium shadow and frame */}
-          <div className="relative w-full max-w-[420px] xl:max-w-[480px] 2xl:max-w-[520px]">
-            {/* Ambient shadow */}
-            <div
-              className="absolute inset-0 rounded-[32px] blur-3xl opacity-20 scale-95"
-              style={backgroundStyle}
-            />
+      {/* Canvas area - horizontal scrollable for all screenshots */}
+      <div
+        ref={canvasContainerRef}
+        className={cn(
+          "flex-1 p-4 md:p-6 overflow-auto relative",
+          isSpacePressed ? "cursor-grab" : "",
+          isPanning ? "cursor-grabbing" : ""
+        )}
+        onMouseDown={handlePanStart}
+      >
+        <div
+          className="flex items-center gap-6 min-h-full px-4 transition-transform duration-100"
+          style={{
+            minWidth: "max-content",
+            transform: `scale(${canvasState.zoom}) translate(${canvasState.panX / canvasState.zoom}px, ${canvasState.panY / canvasState.zoom}px)`,
+            transformOrigin: "center center",
+          }}
+        >
+          {project.screenshots.map((screenshot, screenshotIndex) => {
+            const isSelected = screenshot.id === selectedScreenshotId;
+            const screenshotBg = getScreenshotBackgroundStyle(screenshot);
 
-            {/* Main preview - responsive sizing */}
-            <div
-              ref={canvasRef}
-              className="relative bg-[#1c1c1e] rounded-[28px] overflow-hidden animate-fadeInScale w-full"
-              style={{
-                aspectRatio: "9 / 19.5",
-                boxShadow: "0 25px 80px -20px rgba(0,0,0,0.5), 0 10px 30px -10px rgba(0,0,0,0.3), inset 0 0 0 1px rgba(255,255,255,0.05)",
-                ...backgroundStyle,
-              }}
-            >
-              {/* Text elements - now draggable */}
-              {texts.map((text, index) => {
-                const content = text.translations[currentLocale] || text.translations["en"] || "";
-                return (
-                  <DraggableText
-                    key={text.id}
-                    text={text}
-                    content={content}
-                    index={index}
-                    isSelected={selectedTextId === text.id}
-                    canvasRef={canvasRef}
-                    onSelect={() => selectText(text.id)}
-                    onPositionChange={(newY) => handleTextPositionChange(text.id, newY)}
-                  />
-                );
-              })}
+            return (
+              <div
+                key={screenshot.id}
+                className={cn(
+                  "relative flex-shrink-0 cursor-pointer transition-all duration-200",
+                  isSelected ? "scale-100" : "scale-95 opacity-80 hover:opacity-100 hover:scale-[0.97]"
+                )}
+                style={{ width: "280px" }}
+                onClick={() => selectScreenshot(screenshot.id)}
+              >
+                {/* Screenshot number badge */}
+                <div className={cn(
+                  "absolute -top-3 left-4 z-20 px-2.5 py-1 rounded-full text-xs font-bold shadow-lg",
+                  isSelected
+                    ? "bg-[#0a84ff] text-white"
+                    : "bg-[#2c2c2e] text-[#a1a1a6]"
+                )}>
+                  {screenshotIndex + 1}
+                </div>
 
-              {/* Device Frames - use custom position or layout position */}
-              {layout.devices.map((devicePosition, index) => {
-                // For custom layout or first device, use the stored position
-                const position = selectedLayout === "custom" && index === 0
-                  ? { ...devicePosition, position: customDevicePosition }
-                  : devicePosition;
-
-                return (
-                  <DeviceFrame
-                    key={index}
-                    imageUrl={index === 0 ? image?.url : deviceImages[index]}
-                    position={position}
-                    deviceColor={device.color}
-                    deviceStyle={device.style}
-                    shadow={device.shadow}
-                    shadowBlur={device.shadowBlur}
-                    shadowOpacity={device.shadowOpacity}
-                    onUpload={handleImageUpload}
-                    deviceIndex={index}
-                    onPositionChange={index === 0 ? handleDevicePositionChange : undefined}
-                    canvasRef={canvasRef}
-                  />
-                );
-              })}
-
-              {/* Social Proof Elements */}
-              {socialProof?.map((element) => (
-                <SocialProofRenderer
-                  key={element.id}
-                  element={element}
-                  canvasRef={canvasRef}
-                  isSelected={selectedSocialProofId === element.id}
-                  onSelect={() => {
-                    setSelectedSocialProofId(element.id);
-                    setSelectedNotificationId(null);
-                    selectText(null);
-                  }}
-                  onPositionChange={(x, y) => handleSocialProofPositionChange(element.id, x, y)}
-                  onScaleChange={(scale) => handleSocialProofScaleChange(element.id, scale)}
+                {/* Ambient shadow */}
+                <div
+                  className="absolute inset-0 rounded-[24px] blur-2xl opacity-15 scale-95"
+                  style={screenshotBg}
                 />
-              ))}
 
-              {/* iOS Notifications */}
-              {notifications?.map((notification) => (
-                <NotificationRenderer
-                  key={notification.id}
-                  notification={notification}
-                  canvasRef={canvasRef}
-                  isSelected={selectedNotificationId === notification.id}
-                  onSelect={() => {
-                    setSelectedNotificationId(notification.id);
-                    setSelectedSocialProofId(null);
-                    selectText(null);
+                {/* Screenshot frame */}
+                <div
+                  ref={isSelected ? canvasRef : undefined}
+                  className={cn(
+                    "relative bg-[#1c1c1e] rounded-[20px] overflow-hidden w-full",
+                    isSelected && "ring-2 ring-[#0a84ff] ring-offset-2 ring-offset-[#0a0a0a]"
+                  )}
+                  style={{
+                    aspectRatio: SCREENSHOT_ASPECT_RATIO,
+                    boxShadow: isSelected
+                      ? "0 20px 60px -15px rgba(0,0,0,0.5), 0 8px 25px -8px rgba(0,0,0,0.3), inset 0 0 0 1px rgba(255,255,255,0.05)"
+                      : "0 10px 40px -10px rgba(0,0,0,0.4), inset 0 0 0 1px rgba(255,255,255,0.03)",
+                    ...screenshotBg,
                   }}
-                  onPositionChange={(x, y) => handleNotificationPositionChange(notification.id, x, y)}
-                  onScaleChange={(scale) => handleNotificationScaleChange(notification.id, scale)}
-                />
-              ))}
+                >
+                  {/* Text elements - render from this screenshot's texts */}
+                  {screenshot.texts.map((text, textIndex) => {
+                    const content = text.translations[currentLocale] || text.translations["en"] || "";
+                    return (
+                      <DraggableText
+                        key={text.id}
+                        text={text}
+                        content={content}
+                        index={textIndex}
+                        isSelected={isSelected && selectedTextId === text.id}
+                        canvasRef={isSelected ? canvasRef : { current: null }}
+                        onSelect={() => {
+                          selectScreenshot(screenshot.id);
+                          selectText(text.id);
+                        }}
+                        onPositionChange={isSelected ? (newY) => handleTextPositionChange(text.id, newY) : undefined}
+                        onContentChange={(newContent) => updateTextTranslation(screenshot.id, text.id, currentLocale, newContent)}
+                      />
+                    );
+                  })}
 
-              {/* Click to deselect text, social proof, and notifications */}
+                  {/* Device Frames - render ALL devices from layout */}
+                  {(() => {
+                    // Get this screenshot's layout
+                    const screenshotLayoutId = screenshot.layout || "custom";
+                    const screenshotLayoutDef = LAYOUTS[screenshotLayoutId] || LAYOUTS["single-center"];
+
+                    return screenshotLayoutDef.devices.map((devicePosition, deviceIdx) => {
+                    const screenshotDevice = screenshot.device;
+                    const screenshotImage = screenshot.image;
+
+                    // For custom layout or first device, use the store's position/scale
+                    // For multi-device layouts, use the preset positions exactly
+                    const position = (screenshotLayoutId === "custom" && deviceIdx === 0)
+                      ? {
+                          ...devicePosition,
+                          position: { x: screenshotDevice.positionX, y: screenshotDevice.positionY },
+                          scale: screenshotDevice.scale,
+                          rotation: screenshotDevice.rotation,
+                        }
+                      : devicePosition;
+
+                    return (
+                      <DeviceFrame
+                        key={deviceIdx}
+                        imageUrl={screenshotImage?.url}
+                        imageFit={screenshotImage?.fit || 'contain'}
+                        position={position}
+                        deviceColor={screenshotDevice.color}
+                        deviceStyle={screenshotDevice.style}
+                        shadow={screenshotDevice.shadow}
+                        shadowBlur={screenshotDevice.shadowBlur}
+                        shadowOpacity={screenshotDevice.shadowOpacity}
+                        onUpload={isSelected ? handleImageUpload : () => {}}
+                        deviceIndex={deviceIdx}
+                        isSelected={isSelected}
+                        onPositionChange={isSelected ? handleDevicePositionChange : undefined}
+                        onScaleChange={isSelected ? handleDeviceScaleChange : undefined}
+                        canvasRef={isSelected ? canvasRef : { current: null }}
+                      />
+                    );
+                  });
+                  })()}
+
+                  {/* Social Proof Elements - render from this screenshot */}
+                  {screenshot.socialProof?.map((element) => (
+                    <SocialProofRenderer
+                      key={element.id}
+                      element={element}
+                      canvasRef={isSelected ? canvasRef : { current: null }}
+                      isSelected={isSelected && selectedSocialProofId === element.id}
+                      onSelect={() => {
+                        selectScreenshot(screenshot.id);
+                        setSelectedSocialProofId(element.id);
+                        setSelectedNotificationId(null);
+                        setSelectedBadgeId(null);
+                        selectText(null);
+                      }}
+                      onPositionChange={isSelected ? (x, y) => handleSocialProofPositionChange(element.id, x, y) : undefined}
+                      onScaleChange={isSelected ? (scale) => handleSocialProofScaleChange(element.id, scale) : undefined}
+                    />
+                  ))}
+
+                  {/* iOS Notifications - render from this screenshot */}
+                  {screenshot.notifications?.map((notification) => (
+                    <NotificationRenderer
+                      key={notification.id}
+                      notification={notification}
+                      canvasRef={isSelected ? canvasRef : { current: null }}
+                      isSelected={isSelected && selectedNotificationId === notification.id}
+                      onSelect={() => {
+                        selectScreenshot(screenshot.id);
+                        setSelectedNotificationId(notification.id);
+                        setSelectedSocialProofId(null);
+                        setSelectedBadgeId(null);
+                        selectText(null);
+                      }}
+                      onPositionChange={isSelected ? (x, y) => handleNotificationPositionChange(notification.id, x, y) : undefined}
+                      onScaleChange={isSelected ? (scale) => handleNotificationScaleChange(notification.id, scale) : undefined}
+                    />
+                  ))}
+
+                  {/* Badge Overlays - render from this screenshot */}
+                  {screenshot.badges?.map((badge) => (
+                    <BadgeOverlayRenderer
+                      key={badge.id}
+                      badge={badge}
+                      canvasRef={isSelected ? canvasRef : { current: null }}
+                      isSelected={isSelected && selectedBadgeId === badge.id}
+                      onSelect={() => {
+                        selectScreenshot(screenshot.id);
+                        setSelectedBadgeId(badge.id);
+                        setSelectedSocialProofId(null);
+                        setSelectedNotificationId(null);
+                        selectText(null);
+                      }}
+                      onPositionChange={isSelected ? (x, y) => handleBadgePositionChange(badge.id, x, y) : undefined}
+                      onScaleChange={isSelected ? (scale) => handleBadgeScaleChange(badge.id, scale) : undefined}
+                    />
+                  ))}
+
+                  {/* Snap guides overlay - Figma style */}
+                  {isSelected && (snapGuides.showCenterH || snapGuides.showCenterV || snapGuides.customGuides.length > 0) && (
+                    <SnapGuidesOverlay
+                      showCenterH={snapGuides.showCenterH}
+                      showCenterV={snapGuides.showCenterV}
+                      customGuides={snapGuides.customGuides}
+                    />
+                  )}
+
+              {/* Click to deselect text, social proof, notifications, and badges */}
               <div
                 className="absolute inset-0"
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation();
                   selectText(null);
                   setSelectedSocialProofId(null);
                   setSelectedNotificationId(null);
+                  setSelectedBadgeId(null);
                 }}
                 style={{ zIndex: -1 }}
               />
-            </div>
-          </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
   );
+}
+
+// Helper function to get background style for a screenshot
+function getScreenshotBackgroundStyle(screenshot: ScreenshotConfig): React.CSSProperties {
+  const bg = screenshot.template.background;
+  const style: React.CSSProperties = {};
+
+  if (bg.type === "solid") {
+    style.backgroundColor = bg.color || "#1c1c1e";
+  } else if (bg.type === "gradient" && bg.gradient) {
+    const { type: gradType, angle, stops, center_x, center_y } = bg.gradient;
+    const gradientStops = stops.map((s) => `${s.color} ${s.position * 100}%`).join(", ");
+
+    if (gradType === "radial") {
+      const cx = (center_x ?? 0.5) * 100;
+      const cy = (center_y ?? 0.5) * 100;
+      style.background = `radial-gradient(circle at ${cx}% ${cy}%, ${gradientStops})`;
+    } else if (gradType === "conic") {
+      const cx = (center_x ?? 0.5) * 100;
+      const cy = (center_y ?? 0.5) * 100;
+      style.background = `conic-gradient(from ${angle || 0}deg at ${cx}% ${cy}%, ${gradientStops})`;
+    } else {
+      style.background = `linear-gradient(${angle}deg, ${gradientStops})`;
+    }
+  } else if (bg.type === "mesh" && bg.color_points) {
+    const meshGradients = bg.color_points.map((point) => {
+      const x = point.x * 100;
+      const y = point.y * 100;
+      const size = point.radius * 100;
+      return `radial-gradient(circle at ${x}% ${y}%, ${point.color} 0%, transparent ${size}%)`;
+    });
+    style.background = meshGradients.join(", ");
+    style.backgroundColor = bg.color_points[0]?.color || "#1c1c1e";
+  } else if (bg.type === "glassmorphism" || bg.type === "blobs") {
+    const gradients: string[] = [];
+    if (bg.blobs) {
+      bg.blobs.forEach((blob) => {
+        const x = blob.x * 100;
+        const y = blob.y * 100;
+        const size = blob.size * 80;
+        gradients.push(`radial-gradient(circle at ${x}% ${y}%, ${blob.color} 0%, transparent ${size}%)`);
+      });
+    }
+    if (bg.base_gradient && bg.base_gradient.stops) {
+      const baseStops = bg.base_gradient.stops.map((s) => `${s.color} ${s.position * 100}%`).join(", ");
+      gradients.push(`linear-gradient(${bg.base_gradient.angle || 135}deg, ${baseStops})`);
+    }
+    style.background = gradients.join(", ");
+    style.backgroundColor = bg.base_color || "#0D0D1A";
+  } else if (bg.type === "pattern" && bg.patternConfig) {
+    const { type: patternType, color, backgroundColor, size, opacity } = bg.patternConfig;
+    style.backgroundColor = backgroundColor;
+    style.backgroundImage = getPatternSVG(patternType, color, opacity);
+    style.backgroundSize = `${size}px ${size}px`;
+    style.backgroundRepeat = 'repeat';
+  }
+
+  return style;
 }

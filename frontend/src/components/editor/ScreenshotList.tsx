@@ -1,11 +1,11 @@
 "use client";
 
-import React from "react";
+import React, { useState, useRef } from "react";
 import { Plus, Copy, Trash2, GripVertical, Image as ImageIcon } from "lucide-react";
 import { useEditorStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { ScreenshotConfig, SocialProofElement } from "@/types";
+import type { ScreenshotConfig } from "@/types";
 
 // Generate background style for thumbnail
 function getBackgroundStyle(screenshot: ScreenshotConfig): React.CSSProperties {
@@ -96,36 +96,77 @@ function ThumbnailPreview({ screenshot, locale }: { screenshot: ScreenshotConfig
         );
       })}
 
-      {/* Device frame preview */}
+      {/* Device frame preview - matching main Canvas iPhone frame */}
       <div
         className="absolute"
         style={{
           left: `${deviceX}%`,
           top: `${deviceY}%`,
-          transform: "translate(-50%, -50%)",
-          width: "55%",
-          aspectRatio: "9/19.5",
+          transform: `translate(-50%, -50%) scale(${device.scale}) rotate(${device.rotation}deg)`,
+          width: "50%",
+          aspectRatio: "1242/2688", // App Store screenshot ratio (1242×2688)
         }}
       >
+        {/* Outer frame with iOS-accurate corner radius (16.5% of width) */}
         <div
-          className={cn(
-            "w-full h-full rounded-[4px] overflow-hidden",
-            device.style === "none" ? "" : "bg-[#1c1c1e] border border-[#3a3a3c]"
-          )}
+          className="w-full h-full relative"
           style={{
+            borderRadius: device.style === "none" ? "0" : "16.5%",
+            backgroundColor: device.style === "none" ? "transparent" : "#1c1c1e",
+            border: device.style === "none" ? "none" : "1px solid #3a3a3c",
             boxShadow: device.shadow ? "0 2px 8px rgba(0,0,0,0.3)" : undefined,
+            overflow: "hidden",
           }}
         >
-          {image?.url ? (
-            <img
-              src={image.url}
-              alt="Screenshot"
-              className="w-full h-full object-cover"
+          {/* Inner screen area */}
+          <div
+            className="absolute"
+            style={{
+              top: device.style === "none" ? 0 : "1.8%",
+              left: device.style === "none" ? 0 : "1.8%",
+              right: device.style === "none" ? 0 : "1.8%",
+              bottom: device.style === "none" ? 0 : "1.8%",
+              borderRadius: device.style === "none" ? "0" : "14.7%",
+              overflow: "hidden",
+            }}
+          >
+            {image?.url ? (
+              <img
+                src={image.url}
+                alt="Screenshot"
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center bg-[#2c2c2e]">
+                <ImageIcon className="w-3 h-3 text-[#636366]" />
+              </div>
+            )}
+          </div>
+
+          {/* Dynamic Island - only show if not "none" style */}
+          {device.style !== "none" && (
+            <div
+              className="absolute left-1/2 -translate-x-1/2 bg-black"
+              style={{
+                top: "3.5%",
+                width: "32%",
+                height: "4.4%",
+                borderRadius: "999px",
+              }}
             />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center bg-[#2c2c2e]">
-              <ImageIcon className="w-3 h-3 text-[#636366]" />
-            </div>
+          )}
+
+          {/* Home indicator - only show if not "none" style */}
+          {device.style !== "none" && (
+            <div
+              className="absolute left-1/2 -translate-x-1/2 bg-white/30"
+              style={{
+                bottom: "2.2%",
+                width: "38%",
+                height: "1.5%",
+                borderRadius: "999px",
+              }}
+            />
           )}
         </div>
       </div>
@@ -141,11 +182,55 @@ export function ScreenshotList() {
     addScreenshot,
     removeScreenshot,
     duplicateScreenshot,
+    reorderScreenshots,
     currentLocale,
   } = useEditorStore();
 
+  // Drag and drop state
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const dragRef = useRef<HTMLDivElement | null>(null);
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", index.toString());
+
+    // Create a custom drag image
+    if (dragRef.current) {
+      const rect = (e.target as HTMLElement).getBoundingClientRect();
+      e.dataTransfer.setDragImage(e.target as HTMLElement, rect.width / 2, rect.height / 2);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    if (draggedIndex !== null && draggedIndex !== index) {
+      setDragOverIndex(index);
+    }
+  };
+
+  const handleDragLeave = () => {
+    setDragOverIndex(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, toIndex: number) => {
+    e.preventDefault();
+    if (draggedIndex !== null && draggedIndex !== toIndex) {
+      reorderScreenshots(draggedIndex, toIndex);
+    }
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
+
   return (
-    <div className="w-64 border-r border-[#2c2c2e] bg-[#0a0a0a] flex flex-col h-full">
+    <div className="w-48 min-w-[180px] flex-shrink-0 border-r border-[#2c2c2e] bg-[#0a0a0a] flex flex-col h-full">
       {/* Header */}
       <div className="px-4 py-4 border-b border-[#2c2c2e]">
         <div className="flex items-center justify-between">
@@ -169,15 +254,29 @@ export function ScreenshotList() {
         {project.screenshots.map((screenshot, index) => (
           <div
             key={screenshot.id}
+            ref={index === draggedIndex ? dragRef : null}
+            draggable
+            onDragStart={(e) => handleDragStart(e, index)}
+            onDragOver={(e) => handleDragOver(e, index)}
+            onDragLeave={handleDragLeave}
+            onDrop={(e) => handleDrop(e, index)}
+            onDragEnd={handleDragEnd}
             className={cn(
               "group relative rounded-xl cursor-pointer transition-all duration-200 animate-fadeInUp",
               selectedScreenshotId === screenshot.id
                 ? "ring-2 ring-[#0a84ff] ring-offset-2 ring-offset-[#0a0a0a]"
-                : "hover:shadow-lg hover:shadow-black/30"
+                : "hover:shadow-lg hover:shadow-black/30",
+              draggedIndex === index && "opacity-50 scale-95",
+              dragOverIndex === index && draggedIndex !== index && "ring-2 ring-[#30d158] ring-offset-2 ring-offset-[#0a0a0a]"
             )}
             style={{ animationDelay: `${index * 50}ms` }}
             onClick={() => selectScreenshot(screenshot.id)}
           >
+            {/* Drop indicator - top */}
+            {dragOverIndex === index && draggedIndex !== null && draggedIndex > index && (
+              <div className="absolute -top-1.5 left-0 right-0 h-1 bg-[#30d158] rounded-full" />
+            )}
+
             {/* Thumbnail preview - real-time rendering */}
             <div
               className={cn(
@@ -203,6 +302,11 @@ export function ScreenshotList() {
               </div>
             </div>
 
+            {/* Drop indicator - bottom */}
+            {dragOverIndex === index && draggedIndex !== null && draggedIndex < index && (
+              <div className="absolute -bottom-1.5 left-0 right-0 h-1 bg-[#30d158] rounded-full" />
+            )}
+
             {/* Actions overlay */}
             <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-all duration-200 flex gap-1">
               <button
@@ -211,7 +315,7 @@ export function ScreenshotList() {
                   duplicateScreenshot(screenshot.id);
                 }}
                 className="p-1.5 rounded-lg bg-[#2c2c2e]/95 hover:bg-[#3a3a3c] shadow-sm hover:shadow-md transition-all duration-200"
-                title="Duplicate"
+                title="Duplicate (Cmd+D)"
               >
                 <Copy className="w-3 h-3 text-[#a1a1a6]" />
               </button>
@@ -222,7 +326,7 @@ export function ScreenshotList() {
                     removeScreenshot(screenshot.id);
                   }}
                   className="p-1.5 rounded-lg bg-[#2c2c2e]/95 hover:bg-[#ff453a] shadow-sm hover:shadow-md transition-all duration-200 group/delete"
-                  title="Delete"
+                  title="Delete (Backspace)"
                 >
                   <Trash2 className="w-3 h-3 text-[#ff453a] group-hover/delete:text-white" />
                 </button>
@@ -230,8 +334,11 @@ export function ScreenshotList() {
             </div>
 
             {/* Drag handle */}
-            <div className="absolute left-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-all duration-200 cursor-grab">
-              <div className="p-1 rounded bg-[#2c2c2e]/90 shadow-sm">
+            <div
+              className="absolute left-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-all duration-200 cursor-grab active:cursor-grabbing"
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <div className="p-1 rounded bg-[#2c2c2e]/90 shadow-sm hover:bg-[#3a3a3c]">
                 <GripVertical className="w-3 h-3 text-[#636366]" />
               </div>
             </div>
